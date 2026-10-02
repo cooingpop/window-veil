@@ -1,87 +1,84 @@
-# window-veil
+# Window Veil
 
-고른 프로그램의 창을 **쓰지 않을 때만** 덮는 Windows 트레이 프로그램입니다.
-모니터에 보안필름이 없어도, 지나가는 사람에게 메신저 대화나 메일이 그대로 보이지 않게 합니다.
+**Cover selected Windows app windows when you are not using them.** Window Veil lives in the system tray and places a cover over a selected window when another window is active. Return to the app to uncover it, or hold **Ctrl** while hovering over the cover for a quick peek.
 
-## 하는 일
+Window Veil is a visual privacy aid for people nearby. It does not lock an app, encrypt its contents, or stop screenshots and screen sharing.
 
-- 고른 프로그램의 창을 따라다니며, 다른 창을 쓰는 동안 그 창을 덮습니다.
-- 그 창을 클릭하거나 맨 앞으로 가져오면 가림이 걷힙니다.
-- 덮인 창 위에 마우스를 올리고 **Ctrl 을 누르고 있으면** 잠깐 보입니다. 손을 떼면 다시 덮입니다.
-- 주인 창에 딸린 창(예: 카카오톡 하단 광고 띠)은 주인 창과 함께 걷히고 함께 덮입니다.
-- 대상 창 앞에 다른 창이 겹쳐 있으면 그 창은 덮지 않습니다. 가림은 대상 창 바로 위에만 놓입니다.
-- 가림 위에는 안내 글씨가 없습니다. 보는 사람이 가려져 있다는 것 자체를 알아채지 못하게 하려는 것입니다.
+## What it does
 
-### 가림 모양
+- Follows selected app windows, including related windows, without taking keyboard focus.
+- Keeps the original app in the taskbar and Alt+Tab.
+- Offers blur, blank terminal, simulated terminal logs, blank Notepad, blank spreadsheet, or your own image as a cover.
+- Lets you leave selected parts of a window visible, such as a message input box.
+- Supports monitors with different display scaling settings.
 
-프로그램마다 고를 수 있습니다.
+The built-in terminal, Notepad, and spreadsheet covers contain sample content. You can demonstrate the app with those covers without showing your own conversations or documents.
 
-| 모양 | 보이는 것 |
+## Download and run
+
+Download from [Releases](https://github.com/cooingpop/window-veil/releases). Windows 11 and its included .NET Framework are the intended environment. No separate PowerShell window or compile step is needed for release builds.
+
+| Download | Best for | How to start |
+|---|---|---|
+| `WindowVeil-Setup-…-win-x64.exe` | A normal per-user installation | Run the installer, then launch **Window Veil** from the Start menu. |
+| `WindowVeil-…-win-x64.zip` | Running without an installer | Extract the ZIP and run `WindowVeil.exe`. |
+
+Both editions save settings under `%APPDATA%\WindowVeil`; moving the ZIP does **not** move your settings. Only one instance runs at a time. Quit from the tray menu.
+
+## Use
+
+1. Open the shield icon in the system tray.
+2. Choose **가릴 프로그램 고르기** (“Choose apps to cover”) and select the programs you want to cover.
+3. Under **가린 창 꾸미기** (“Customize covered windows”), choose a cover style or set an area that should remain visible.
+4. Hover over a covered window and hold **Ctrl** to peek. Activate the original window to remove its cover.
+
+The interface is currently in Korean. The tray menu also contains a help view (**사용법 보기**), a temporary pause option, and Quit.
+
+## Build from source
+
+On Windows with the .NET Framework C# compiler, run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
+```
+
+This produces `dist\WindowVeil.exe`. The installer is built with [Inno Setup 6](https://jrsoftware.org/isinfo.php):
+
+```powershell
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\WindowVeil.iss
+```
+
+For source-only development, `run-hidden.vbs` still starts `run.ps1`, which compiles `src\Veil.cs` in PowerShell at each launch. Release builds use the compiled executable.
+
+## Local data and privacy
+
+Window Veil runs locally. It stores selected executable names, cover preferences, optional image paths, visible-area geometry, and a diagnostic log in `%APPDATA%\WindowVeil`. It does not save window titles or window contents. If you choose a custom image, the path to that file is stored. The log may contain app names and diagnostic details, so inspect it before sharing it in an issue.
+
+| File | Purpose |
 |---|---|
-| 흐림 (기본) | 창 위에 진한 흐린 유리 |
-| 빈 터미널 | PowerShell 탭 하나가 열린 빈 터미널 |
-| 로그가 올라가는 터미널 | 위 터미널에 흔한 서버 로그가 몇 초마다 한 줄씩 올라감 |
-| 빈 메모장 | 「제목 없음 - 메모장」 |
-| 빈 표 | 빈 스프레드시트 |
-| 그림 파일 | 직접 고른 png, jpg, bmp, gif 를 창에 꽉 차게 |
+| `targets.txt` | Selected app executable names and cover styles |
+| `areas.txt` | Visible-area positions and window-type markers |
+| `veil.log` | Diagnostic events |
 
-창 영역만 바뀝니다. 작업 표시줄과 Alt+Tab 에는 원래 프로그램이 그대로 보입니다.
+Uninstalling the app does not remove this user data. To remove your preferences too, quit Window Veil and delete `%APPDATA%\WindowVeil`.
 
-### 일부만 보이게 두기
+## Current limitations
 
-창이 덮여 있어도 일부 영역은 보이게 둘 수 있습니다(예: 카카오톡 대화방 입력칸).
+- The cover also hides the window from **you** until you activate it or peek. A visible area is visible to everyone looking at the screen.
+- Screen sharing captures what is on your screen, including the cover. Window Veil is not protection against someone controlling your PC or accessing the original app directly.
+- Manually checked so far: KakaoTalk PC, Discord, and Whale on Windows 11, including a 125% system scale and a 150% monitor.
+- Windows 10, Microsoft Store apps, always-on-top windows, and dragging a window between monitors with different scaling have not yet been verified.
 
-- 창 위에 뜬 파란 사각형을 일반 창처럼 다룹니다. 가운데를 끌면 옮겨지고, 가장자리나 모서리를 끌면 크기가 바뀝니다.
-- 입력칸 같은 구성 요소 가까이 놓으면 그 크기에 딱 맞게 붙습니다. 붙은 영역은 그 구성 요소의 실제 위치를 매번 읽어서 따라갑니다. 붙여 둔 구성 요소가 보이지 않으면 그 자리도 덮습니다.
-- 붙지 않은 영역은 가장 가까운 창 가장자리 기준으로 저장해서, 창 크기를 바꿔도 같은 자리를 따라갑니다.
-- 저장하면 **같은 종류의 창**에 모두 적용됩니다. 창 안 구성 요소의 종류(글자 내용 아님)로 종류를 구분합니다. 그래서 카카오톡 대화방에서 정한 영역은 다른 대화방에는 적용되고 친구 목록 창에는 적용되지 않습니다.
+## Contributing
 
-## 실행
+Please [open an issue](https://github.com/cooingpop/window-veil/issues/new/choose) for a bug or an idea. Include your Windows version, target app, monitor scaling, and cover style when reporting display problems. Remove personal text, names, email addresses, and file paths from screenshots and logs before posting. Pull requests are welcome; discuss larger changes in an issue first.
 
-필요한 것: Windows 11, Windows PowerShell 5.1(기본 설치되어 있음). 따로 설치할 것은 없습니다.
+## License
 
-- `run-hidden.vbs` 를 더블클릭합니다. 작업 표시줄 오른쪽에 방패 아이콘이 생깁니다.
-- 콘솔에서 실행하려면:
+[MIT](LICENSE).
 
-  ```
-  powershell -NoProfile -STA -ExecutionPolicy Bypass -File run.ps1
-  ```
+---
 
-이미 떠 있으면 두 번째 실행은 아무것도 하지 않고 끝납니다.
+### 한국어 안내
 
-## 쓰는 법
-
-1. 방패 아이콘을 누릅니다. 왼쪽 클릭, 오른쪽 클릭 모두 같은 메뉴가 열립니다. 맨 위 줄에 지금 몇 개 프로그램을 가리고 있는지 나옵니다.
-2. **가릴 프로그램 고르기** 에서 가릴 프로그램을 체크합니다. 메뉴가 닫히지 않으니 여러 개를 이어서 고를 수 있습니다. 다시 누르면 해제됩니다.
-3. **가린 창 꾸미기** 에서 프로그램을 고르면 가림 모양을 바꾸거나 **보이게 둘 영역 조절하기** 를 할 수 있습니다. 그 프로그램 창이 여러 개면, 조절할 창을 30초 안에 클릭합니다.
-4. 메뉴 아래쪽에서 **사용법 보기**, **모든 가림 잠시 끄기**, **창 가림 끝내기** 를 할 수 있습니다. 사용법은 할 일별로 묶어 보여줍니다.
-
-## 저장하는 것
-
-| 파일 | 내용 |
-|---|---|
-| `%APPDATA%\WindowVeil\targets.txt` | 고른 프로그램의 실행 파일 이름과 가림 모양 (그림을 골랐다면 그 파일 위치) |
-| `%APPDATA%\WindowVeil\areas.txt` | 보이게 둘 영역의 위치, 창 종류를 구분하는 구성 요소 종류 이름, 그릴 때의 화면 배율 |
-| `%APPDATA%\WindowVeil\veil.log` | 가림을 만들고, 걷고, 덮은 기록 |
-
-창 제목과 화면 내용은 어디에도 남기지 않습니다. 대화방 이름이나 대화처럼 개인정보가 들어 있기 때문입니다.
-
-## 동작 방식
-
-- 창이 생기거나 없어지고, 보이거나 숨고, 움직이고, 맨 앞 창이 바뀔 때 Windows 가 보내는 알림을 받아서 그때만 가림을 다시 맞춥니다. 자기 가림 창의 변화는 받지 않습니다.
-- 그 밖에는 80ms 마다 Ctrl 키와 마우스 위치(엿보기용), 맨 앞 창만 가볍게 확인합니다. 알림이 빠질 때를 대비해 1초에 한 번은 전체를 다시 확인합니다.
-- 흐림은 Windows 아크릴 흐림 효과를 씁니다. 가림 창은 포커스를 뺏지 않고, 작업 표시줄과 Alt+Tab 에 나타나지 않습니다.
-- 가림 창은 항상 대상 창 바로 위 순서에 끼워 넣습니다. 「항상 위」 로 띄우면 대상 앞에 있는 다른 창까지 덮기 때문입니다.
-- 보이게 둘 영역이 있으면 창 전체에서 그 영역을 뺀 나머지를 사각형 여러 장으로 나눠 덮습니다. 창 모양을 잘라 구멍을 내면 아크릴 흐림이 잘린 자리까지 칠해지기 때문입니다.
-
-## 알아둘 점
-
-- 화면에 그리는 방식이라 **나에게도 가려집니다.** 보안필름처럼 보는 각도로 막는 것이 아닙니다.
-- 화면 공유를 하면 가림도 함께 공유됩니다. 공유를 보는 사람에게도 가려진 상태로 보입니다.
-- 보이게 둔 영역 안의 내용(예: 입력칸에 써 둔 글)은 지나가는 사람에게도 보입니다.
-- 모니터마다 화면 배율이 달라도 맞습니다. 모니터별 배율을 직접 다뤄서 모든 좌표를 실제 픽셀로 맞추기 때문입니다.
-- 지금까지 직접 확인한 대상은 카카오톡 PC 버전, Discord, Whale(시스템 125% 인 PC 에서 150% 모니터에 띄운 창)입니다. 아래는 아직 확인하지 않았습니다.
-  - Windows 10
-  - Microsoft Store 앱
-  - 「항상 위」 로 설정된 창
-  - 창을 배율이 다른 모니터로 끌어 옮기는 도중
+Window Veil은 다른 창을 사용하는 동안 선택한 프로그램 창을 가려 주는 Windows 트레이 앱입니다. [Releases](https://github.com/cooingpop/window-veil/releases)에서 설치 파일을 받거나 ZIP을 풀고 `WindowVeil.exe`를 실행하세요. 방패 아이콘의 **가릴 프로그램 고르기**에서 대상을 고르고, **가린 창 꾸미기**에서 가림 모양과 보이게 둘 영역을 설정할 수 있습니다. 가림 위에 마우스를 올린 채 **Ctrl**을 누르면 잠깐 볼 수 있습니다. 설정은 설치형과 ZIP형 모두 `%APPDATA%\WindowVeil`에 저장됩니다.

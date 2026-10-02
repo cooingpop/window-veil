@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build application
+        shell: pwsh
+        run: .\build.ps1
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+      - name: Package installer and ZIP
+        shell: pwsh
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { '0.1.0-dev' }
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\WindowVeil.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed' }
+          Compress-Archive -Path dist\WindowVeil.exe -DestinationPath "dist\WindowVeil-$version-win-x64.zip" -Force
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: window-veil-windows
+          path: |
+            dist/WindowVeil-Setup-*.exe
+            dist/WindowVeil-*-win-x64.zip
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $assets = @(Get-ChildItem dist -File | Where-Object { $_.Name -like 'WindowVeil-Setup-*.exe' -or $_.Name -like 'WindowVeil-*-win-x64.zip' } | ForEach-Object FullName)
+          if ($assets.Count -ne 2) { throw "Expected installer and ZIP, found $($assets.Count) assets" }
+          gh release create $env:GITHUB_REF_NAME $assets --title "Window Veil $env:GITHUB_REF_NAME" --generate-notes
