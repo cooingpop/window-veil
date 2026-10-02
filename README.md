@@ -45,10 +45,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 This produces `dist\WindowVeil.exe`. The installer is built with [Inno Setup 6](https://jrsoftware.org/isinfo.php):
 
 ```powershell
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\WindowVeil.iss
+$version = (Get-Content VERSION).Trim()
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\WindowVeil.iss
 ```
 
 For source-only development, `run-hidden.vbs` still starts `run.ps1`, which compiles `src\Veil.cs` in PowerShell at each launch. Release builds use the compiled executable.
+
+## Versioning
+
+The current version is in [`VERSION`](VERSION). Releases follow `MAJOR.MINOR.PATCH`:
+
+- **MAJOR**: a change that breaks existing behavior or compatibility.
+- **MINOR**: a new feature that keeps existing behavior compatible.
+- **PATCH**: a compatible bug fix or small correction.
+
+Update `VERSION` in a pull request, then tag that commit as `vMAJOR.MINOR.PATCH`. The release workflow checks that the tag matches `VERSION`, embeds the version in `WindowVeil.exe`, and uses it for the installer and ZIP names. Published tags and release files are kept as historical versions.
 
 ## Local data and privacy
 

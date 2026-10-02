@@ -14,6 +14,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate release version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw VERSION).Trim()
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') { throw "Invalid VERSION: $version" }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") { throw "Tag $env:GITHUB_REF_NAME does not match VERSION $version" }
       - name: Build application
         shell: pwsh
         run: .\build.ps1
@@ -23,7 +29,7 @@ jobs:
       - name: Package installer and ZIP
         shell: pwsh
         run: |
-          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME.TrimStart('v') } else { '0.1.0-dev' }
+          $version = (Get-Content -Raw VERSION).Trim()
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\WindowVeil.iss
           if ($LASTEXITCODE -ne 0) { throw 'Inno Setup failed' }
           Compress-Archive -Path dist\WindowVeil.exe -DestinationPath "dist\WindowVeil-$version-win-x64.zip" -Force
