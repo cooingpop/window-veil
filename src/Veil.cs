@@ -35,6 +35,7 @@ static class Win {
     [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vk);
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr ctx);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] public static extern int SetWindowCompositionAttribute(IntPtr h, ref CompAttr d);
@@ -159,6 +160,9 @@ public static class Skins {
 
     static int P(float v, float s) { return (int)Math.Round(v * s); }
 
+    // 글씨 크기도 대상 창의 배율로 정한다. 포인트로 만들면 그리는 화면의 배율을 따라가서, 배율이 다른 모니터에서 도형과 크기가 어긋난다.
+    static Font Fnt(string name, float pt, float s) { return new Font(name, pt * 96f / 72f * s, GraphicsUnit.Pixel); }
+
     static void Fill(Graphics g, Color c, int x, int y, int w, int h) {
         using (var b = new SolidBrush(c)) g.FillRectangle(b, x, y, w, h);
     }
@@ -191,7 +195,7 @@ public static class Skins {
         Fill(g, Color.FromArgb(38, 113, 190), ix, iy, ic, ic);
         using (var pen = new Pen(Color.White, Math.Max(1f, 1.5f * s)))
             g.DrawLines(pen, new[] { new Point(ix + P(4, s), iy + P(4, s)), new Point(ix + P(8, s), iy + P(8, s)), new Point(ix + P(4, s), iy + P(12, s)) });
-        using (var f = new Font("Segoe UI", 9f))
+        using (var f = Fnt("Segoe UI", 9f, s))
             Text(g, @"C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe", f, Color.FromArgb(230, 230, 230),
                 new RectangleF(ix + ic + P(8, s), ty, tw - ic - P(64, s), bar - ty), StringAlignment.Near);
         using (var pen = new Pen(Color.FromArgb(200, 200, 200), Math.Max(1f, s))) {
@@ -205,7 +209,7 @@ public static class Skins {
         }
         Caption(g, z, s, bar, Color.FromArgb(220, 220, 220));
         if (log == null || log.Count == 0) return;
-        using (var f = new Font("Consolas", 10f))
+        using (var f = Fnt("Consolas", 10f, s))
         using (var normal = new SolidBrush(Color.FromArgb(204, 204, 204)))
         using (var warn = new SolidBrush(Color.FromArgb(249, 241, 165))) {
             float lh = f.GetHeight(g);
@@ -231,7 +235,7 @@ public static class Skins {
         Fill(g, Color.FromArgb(0, 120, 212), ix, iy, ic, ic);
         using (var pen = new Pen(Color.White, Math.Max(1f, s)))
             for (int k = 1; k <= 3; k++) g.DrawLine(pen, ix + P(3, s), iy + P(4 * k, s), ix + ic - P(3, s), iy + P(4 * k, s));
-        using (var f = new Font("Malgun Gothic", 9f)) {
+        using (var f = Fnt("Malgun Gothic", 9f, s)) {
             Text(g, "제목 없음 - 메모장", f, Color.Black, new RectangleF(ix + ic + P(10, s), 0, Math.Max(0, z.Width - P(200, s)), bar), StringAlignment.Near);
             float mx = P(10, s);
             foreach (var m in new[] { "파일", "편집", "서식", "보기", "도움말" }) {
@@ -256,7 +260,7 @@ public static class Skins {
         var headBg = Color.FromArgb(232, 232, 232);
         Fill(g, headBg, 0, top, z.Width, head);
         Fill(g, headBg, 0, top, rowW, Math.Max(0, z.Height - top));
-        using (var f = new Font("Malgun Gothic", 9f)) {
+        using (var f = Fnt("Malgun Gothic", 9f, s)) {
             Text(g, "통합 문서1 - 표", f, Color.White, new RectangleF(P(14, s), 0, Math.Max(0, z.Width - P(200, s)), bar), StringAlignment.Near);
             Fill(g, Color.White, P(8, s), bar + P(6, s), P(64, s), tool - P(12, s));
             Text(g, "A1", f, Color.Black, new RectangleF(P(14, s), bar, P(56, s), tool), StringAlignment.Near);
@@ -727,8 +731,14 @@ public static class VeilApp {
     }
 
     static void Start(int minutes, string log) {
-        Win.SetProcessDPIAware();
         logPath = log;
+        // 모니터마다 배율이 다를 수 있다. 시스템 배율 기준(SetProcessDPIAware)으로만 맞추면, 배율이 다른 모니터의 창 위치는
+        // 환산되어 돌아오는데 테두리 위치(DWM)는 실제 픽셀로 돌아와서 가림이 어긋난다(150% 모니터의 Whale 에서 확인).
+        // 모니터별 배율을 직접 다루게(Per-Monitor V2, -4) 해서 모든 좌표를 실제 픽셀로 통일한다. 창을 만들기 전에 불러야 한다.
+        bool perMonitor = false;
+        try { perMonitor = Win.SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch (EntryPointNotFoundException) { }
+        if (!perMonitor) Win.SetProcessDPIAware();
+        Log("화면 배율 처리 · " + (perMonitor ? "모니터별 배율" : "시스템 배율 기준 (모니터마다 배율이 다르면 어긋날 수 있음)"));
         selfPid = (uint)Process.GetCurrentProcess().Id;
         if (minutes > 0) endAt = DateTime.Now.AddMinutes(minutes);
         string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WindowVeil");
