@@ -59,7 +59,7 @@ class Veil : Form {
 
     public Veil(IntPtr target) {
         Target = target;
-        // 딸린 창(카카오톡 하단 광고 띠 등)은 주인 창 가림과 이어 붙으므로 글씨를 쓰지 않는다.
+        // 딸린 창(카카오톡 하단 광고 띠 등)인지. 기록에만 쓴다.
         Owned = Win.GetWindow(target, Win.GW_OWNER) != IntPtr.Zero;
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.Manual;
@@ -97,26 +97,44 @@ class Veil : Form {
     // 가림을 클릭하면 덮여 있던 창으로 넘어간다. 다음 점검 때 그 창이 맨 앞이므로 가림이 걷힌다.
     protected override void OnMouseDown(MouseEventArgs e) { Win.SetForegroundWindow(Target); }
 
-    protected override void OnResize(EventArgs e) { base.OnResize(e); Invalidate(); }
+    // 가림 위에는 아무것도 그리지 않는다. 글씨가 있으면 가려져 있다는 사실 자체가 드러난다.
+}
 
-    protected override void OnPaint(PaintEventArgs e) {
-        if (Owned) return;
-        var lines = Height >= 140
-            ? new[] { "가려진 창입니다", "마우스를 올리고 Ctrl 을 누르고 있으면 보입니다", "클릭하면 이 창으로 넘어갑니다" }
-            : new[] { "가려진 창입니다" };
-        using (var title = new Font("Malgun Gothic", 13, FontStyle.Bold))
-        using (var body = new Font("Malgun Gothic", 10)) {
-            int total = 0;
-            for (int i = 0; i < lines.Length; i++) total += (i == 0 ? title : body).Height + 6;
-            int y = (Height - total) / 2;
-            for (int i = 0; i < lines.Length; i++) {
-                var f = i == 0 ? title : body;
-                var r = new Rectangle(0, y, Width, f.Height);
-                TextRenderer.DrawText(e.Graphics, lines[i], f, r, i == 0 ? Color.White : Color.Gainsboro,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-                y += f.Height + 6;
-            }
+// 방패 아이콘 메뉴의 「사용법 보기」. 할 일별로 묶어 보여준다.
+class HelpForm : Form {
+    static readonly string[][] Sections = {
+        new[] { "프로그램 가리기", "작업 표시줄의 방패 아이콘을 누르고, 목록에서 가릴 프로그램을 체크합니다. 체크한 프로그램은 다른 창을 쓰는 동안 흐리게 덮입니다. 메뉴가 닫히지 않으니 여러 개를 이어서 체크할 수 있습니다." },
+        new[] { "잠깐 보기", "덮인 창 위에 마우스를 올리고 Ctrl 을 누르고 있으면 보입니다. 손을 떼면 다시 덮입니다." },
+        new[] { "그 창으로 돌아가기", "덮인 창을 클릭하면 그 창으로 넘어가고 가림이 걷힙니다. 작업 표시줄이나 Alt+Tab 으로 넘어가도 같습니다." },
+        new[] { "가림 그만두기", "목록에서 체크를 풀면 그 프로그램만 그만 가립니다. 전부 잠깐 멈추려면 「모든 가림 잠시 끄기」, 프로그램을 닫으려면 「창 가림 끝내기」 를 누릅니다." },
+        new[] { "저장하는 것", "고른 프로그램의 이름만 %APPDATA%\\WindowVeil\\targets.txt 에 저장합니다. 창 제목이나 화면 내용은 저장하지 않습니다." },
+    };
+
+    public HelpForm() {
+        Text = "창 가림 사용법";
+        Icon = SystemIcons.Shield;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false; MinimizeBox = false;
+        StartPosition = FormStartPosition.CenterScreen;
+        AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        Font = new Font("Malgun Gothic", 10);
+
+        int width;
+        using (var g = CreateGraphics()) width = (int)(440 * g.DpiX / 96f);
+        var bold = new Font(Font, FontStyle.Bold);
+        var flow = new FlowLayoutPanel {
+            FlowDirection = FlowDirection.TopDown, WrapContents = false,
+            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(18, 8, 18, 16)
+        };
+        foreach (var s in Sections) {
+            flow.Controls.Add(new Label { Text = s[0], Font = bold, AutoSize = true, Margin = new Padding(0, 12, 0, 3) });
+            flow.Controls.Add(new Label { Text = s[1], AutoSize = true, MaximumSize = new Size(width, 0), Margin = new Padding(0) });
         }
+        var close = new Button { Text = "닫기", AutoSize = true, Margin = new Padding(0, 18, 0, 0) };
+        close.Click += (s, e) => Close();
+        flow.Controls.Add(close);
+        AcceptButton = close; CancelButton = close;
+        Controls.Add(flow);
     }
 }
 
@@ -137,6 +155,8 @@ public static class VeilApp {
     static readonly Dictionary<IntPtr, Veil> veils = new Dictionary<IntPtr, Veil>();
     static NotifyIcon tray;
     static ContextMenuStrip menu;
+    static ToolStripMenuItem statusItem;
+    static HelpForm helpForm;
     static System.Windows.Forms.Timer timer;
     static bool keepMenuOpen;
 
@@ -170,16 +190,16 @@ public static class VeilApp {
             keepMenuOpen = false;
         };
 
-        tray = new NotifyIcon { Icon = SystemIcons.Shield, Visible = true, ContextMenuStrip = menu };
+        // 마우스를 올렸을 때 뜨는 글씨는 이름만 둔다. 상태와 사용법은 메뉴 안에서 보여준다.
+        tray = new NotifyIcon { Icon = SystemIcons.Shield, Visible = true, ContextMenuStrip = menu, Text = "창 가림" };
         tray.MouseUp += (s, e) => {
             if (e.Button != MouseButtons.Left) return;
             var show = typeof(NotifyIcon).GetMethod("ShowContextMenu", BindingFlags.Instance | BindingFlags.NonPublic);
             if (show != null) show.Invoke(tray, null);
         };
-        UpdateTrayText();
         if (firstRun || selected.Count == 0)
             tray.ShowBalloonTip(8000, "창 가림이 켜졌습니다",
-                "작업 표시줄의 방패 아이콘을 눌러 가릴 프로그램을 체크하세요. 체크한 프로그램은 쓰지 않을 때 흐리게 덮입니다.", ToolTipIcon.Info);
+                "작업 표시줄의 방패 아이콘을 눌러 가릴 프로그램을 체크하세요. 사용법도 그 메뉴에 있습니다.", ToolTipIcon.Info);
         else
             tray.ShowBalloonTip(5000, "창 가림이 켜졌습니다",
                 selected.Count + "개 프로그램을 가립니다. 바꾸려면 방패 아이콘을 누르세요.", ToolTipIcon.Info);
@@ -196,6 +216,9 @@ public static class VeilApp {
     static void BuildMenu() {
         foreach (ToolStripItem old in menu.Items) if (old.Image != null) old.Image.Dispose();
         menu.Items.Clear();
+        statusItem = new ToolStripMenuItem(StatusText()) { Enabled = false };
+        menu.Items.Add(statusItem);
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("가릴 프로그램 고르기 · 체크하면 쓰지 않을 때 가려집니다") { Enabled = false });
 
         var running = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase);
@@ -219,10 +242,12 @@ public static class VeilApp {
             menu.Items.Add(row.Value);
 
         menu.Items.Add(new ToolStripSeparator());
+        var help = new ToolStripMenuItem("사용법 보기");
+        help.Click += (s, e) => ShowHelp();
+        menu.Items.Add(help);
         var pause = new ToolStripMenuItem(enabled ? "모든 가림 잠시 끄기" : "모든 가림 다시 켜기");
         pause.Click += (s, e) => {
             enabled = !enabled;
-            UpdateTrayText();
             Log(enabled ? "가림 다시 켬" : "가림 잠시 끔");
         };
         menu.Items.Add(pause);
@@ -236,15 +261,20 @@ public static class VeilApp {
         if (selected.Contains(name)) selected.Remove(name); else selected.Add(name);
         item.Checked = selected.Contains(name);
         SaveSelection();
-        UpdateTrayText();
+        if (statusItem != null) statusItem.Text = StatusText();
         Log((item.Checked ? "가림 대상 추가 · " : "가림 대상 해제 · ") + name);
     }
 
-    static void UpdateTrayText() {
-        string t = !enabled ? "창 가림 · 잠시 꺼짐"
-            : selected.Count == 0 ? "창 가림 · 가릴 프로그램을 골라 주세요"
-            : "창 가림 · " + selected.Count + "개 프로그램을 가리는 중";
-        tray.Text = t.Length > 63 ? t.Substring(0, 63) : t;
+    static string StatusText() {
+        return !enabled ? "모든 가림이 잠시 꺼져 있습니다"
+            : selected.Count == 0 ? "가릴 프로그램을 아직 고르지 않았습니다"
+            : "지금 " + selected.Count + "개 프로그램을 가리고 있습니다";
+    }
+
+    static void ShowHelp() {
+        if (helpForm != null && !helpForm.IsDisposed) { helpForm.Activate(); return; }
+        helpForm = new HelpForm();
+        helpForm.Show();
     }
 
     static string DisplayName(string name, string path) {
