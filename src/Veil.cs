@@ -704,6 +704,7 @@ public static class VeilApp {
     static readonly Dictionary<IntPtr, VeilGroup> groups = new Dictionary<IntPtr, VeilGroup>();
     static NotifyIcon tray;
     static ContextMenuStrip menu;
+    static Font boldMenuFont; // 가리는 중인 프로그램 이름은 굵게
     static ToolStripMenuItem statusItem;
     static HelpForm helpForm;
     static AreaEditor editor;
@@ -739,7 +740,9 @@ public static class VeilApp {
         LoadAreas();
 
         Application.EnableVisualStyles();
-        menu = new ContextMenuStrip();
+        // 아이콘이 있는 항목은 체크해도 아이콘 둘레만 옅게 칠해져 잘 안 보인다. 체크 칸을 따로 둔다.
+        menu = new ContextMenuStrip { ShowCheckMargin = true, ShowImageMargin = true };
+        boldMenuFont = new Font(menu.Font, FontStyle.Bold);
         menu.Opening += (s, e) => { BuildMenu(); e.Cancel = false; };
         menu.ItemClicked += (s, e) => { keepMenuOpen = e.ClickedItem.Tag is string; };
         // 체크 항목이나 하위 메뉴가 있는 항목을 누를 때는 메뉴를 닫지 않는다.
@@ -798,6 +801,7 @@ public static class VeilApp {
             displayNames[name] = DisplayName(name, path);
             string label = displayNames[name] + (running.ContainsKey(name) ? "" : " · 지금 꺼져 있음");
             var item = new ToolStripMenuItem(label) { Tag = name, Checked = selected.Contains(name), Image = IconOf(path) };
+            if (item.Checked) item.Font = boldMenuFont;
             item.Click += (s, e) => Toggle((ToolStripMenuItem)s);
             rows.Add(new KeyValuePair<string, ToolStripMenuItem>(label, item));
         }
@@ -857,6 +861,7 @@ public static class VeilApp {
         string name = (string)item.Tag;
         if (selected.Contains(name)) selected.Remove(name); else selected.Add(name);
         item.Checked = selected.Contains(name);
+        item.Font = item.Checked ? boldMenuFont : menu.Font;
         SaveSelection();
         if (statusItem != null) statusItem.Text = StatusText();
         Log((item.Checked ? "가림 대상 추가 · " : "가림 대상 해제 · ") + name);
