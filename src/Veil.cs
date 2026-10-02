@@ -17,6 +17,9 @@ using System.Windows.Forms;
 // 덮인 창 위에 마우스를 올리고 Ctrl 을 누르고 있으면 잠깐 보인다.
 static class Win {
     public delegate bool EnumProc(IntPtr h, IntPtr l);
+    public delegate void WinEventProc(IntPtr hook, uint ev, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
+    [DllImport("user32.dll")] public static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr module, WinEventProc proc, uint pid, uint tid, uint flags);
+    [DllImport("user32.dll")] public static extern bool UnhookWinEvent(IntPtr hook);
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc cb, IntPtr l);
     [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr parent, EnumProc cb, IntPtr l);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
@@ -48,7 +51,17 @@ static class Win {
 
     public const uint GW_HWNDPREV = 3;
     public const uint GW_OWNER = 4;
+    public const uint GA_ROOT = 2;
     public const uint GA_ROOTOWNER = 3;
+
+    // 구독하는 창 변화 알림
+    public const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+    public const uint EVENT_SYSTEM_MOVESIZESTART = 0x000A, EVENT_SYSTEM_MOVESIZEEND = 0x000B;
+    public const uint EVENT_SYSTEM_MINIMIZESTART = 0x0016, EVENT_SYSTEM_MINIMIZEEND = 0x0017;
+    public const uint EVENT_OBJECT_CREATE = 0x8000, EVENT_OBJECT_REORDER = 0x8004;
+    public const uint EVENT_OBJECT_LOCATIONCHANGE = 0x800B;
+    public const uint EVENT_OBJECT_CLOAKED = 0x8017, EVENT_OBJECT_UNCLOAKED = 0x8018;
+    public const uint WINEVENT_OUTOFCONTEXT = 0x0000, WINEVENT_SKIPOWNPROCESS = 0x0002;
     public const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     public const int DWMWA_CLOAKED = 14;
     public const uint SWP_NOACTIVATE = 0x0010;
@@ -429,7 +442,8 @@ class VeilGroup {
     public float Scale = 1f;
     public int HoleCount = -1;
     public HashSet<string> Kind;
-    public int KindTick = int.MinValue;
+    public DateTime KindAt = DateTime.MinValue;
+    public IntPtr Root;         // 주인 창(딸린 창이 아니면 자기 자신)
     public List<string> Log;
     public int LogSerial;
     public DateTime NextLogAt = DateTime.MinValue;
@@ -677,7 +691,10 @@ public static class VeilApp {
     static uint selfPid;
     static DateTime endAt = DateTime.MaxValue;
     static bool enabled = true;
-    static int tick;
+    static DateTime lastFull = DateTime.MinValue;
+    static DateTime lastPidClear = DateTime.Now;
+    static IntPtr lastFg = IntPtr.Zero;
+    static IntPtr lastPeekRoot = IntPtr.Zero;
     static readonly Random rng = new Random();
     static readonly HashSet<string> selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     static readonly Dictionary<string, string> skins = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -693,7 +710,10 @@ public static class VeilApp {
     static IntPtr editingTarget = IntPtr.Zero;
     static string pendingEdit;
     static DateTime pendingUntil;
-    static System.Windows.Forms.Timer timer;
+    // 가벼운 확인(80ms)과, 다시 계산이 필요할 때만 잠깐 켜는 타이머. 알림이 몰려도 한 번에 묶어 계산한다.
+    static System.Windows.Forms.Timer pollTimer, updateTimer;
+    static Win.WinEventProc hookProc; // 대리자가 수거되면 알림이 끊기므로 붙잡아 둔다
+    static readonly List<IntPtr> hooks = new List<IntPtr>();
     static bool keepMenuOpen;
 
     public static void Run(int minutes, string log) {
@@ -740,9 +760,13 @@ public static class VeilApp {
         else
             Balloon("창 가림이 켜졌습니다", selected.Count + "개 프로그램을 가립니다. 바꾸려면 방패 아이콘을 누르세요.");
 
-        timer = new System.Windows.Forms.Timer { Interval = 50 };
-        timer.Tick += (s, e) => Tick();
-        timer.Start();
+        updateTimer = new System.Windows.Forms.Timer { Interval = 15 };
+        updateTimer.Tick += (s, e) => { updateTimer.Stop(); Update(); };
+        pollTimer = new System.Windows.Forms.Timer { Interval = 80 };
+        pollTimer.Tick += (s, e) => Poll();
+        pollTimer.Start();
+        Subscribe();
+        MarkDirty();
         Log("시작 · 고른 프로그램 " + selected.Count + "개 · 보이게 둘 영역 " + areas.Count + "개" + (minutes > 0 ? " · " + minutes + "분 뒤 종료" : ""));
         Application.Run();
     }
@@ -819,6 +843,7 @@ public static class VeilApp {
         pause.Click += (s, e) => {
             enabled = !enabled;
             Log(enabled ? "가림 다시 켬" : "가림 잠시 끔");
+            MarkDirty();
         };
         menu.Items.Add(pause);
         var quit = new ToolStripMenuItem("창 가림 끝내기");
@@ -835,6 +860,7 @@ public static class VeilApp {
         SaveSelection();
         if (statusItem != null) statusItem.Text = StatusText();
         Log((item.Checked ? "가림 대상 추가 · " : "가림 대상 해제 · ") + name);
+        MarkDirty();
     }
 
     static string SkinOf(string name) { string k; return skins.TryGetValue(name, out k) ? k : "blur"; }
@@ -843,6 +869,7 @@ public static class VeilApp {
         if (Skins.IsBlur(key)) skins.Remove(name); else skins[name] = key;
         SaveSelection();
         Log("가림 모양 · " + name + " · " + (Skins.IsImage(key) ? "그림 파일" : key));
+        MarkDirty();
     }
 
     static void PickImage(string name) {
@@ -911,7 +938,7 @@ public static class VeilApp {
         editingTarget = h;
         editor = new AreaEditor(h, Shown(program), frame, existing);
         editor.OnSave = list => SaveEdit(h, program, list);
-        editor.FormClosed += (s, e) => { editingTarget = IntPtr.Zero; editor = null; Log("영역 조절 닫음"); };
+        editor.FormClosed += (s, e) => { editingTarget = IntPtr.Zero; editor = null; Log("영역 조절 닫음"); MarkDirty(); };
         editor.Show();
         Log("영역 조절 시작 · " + program + " · 기존 영역 " + existing.Count + "개");
     }
@@ -929,6 +956,7 @@ public static class VeilApp {
         }
         SaveAreas();
         Log("보이게 둘 영역 저장 · " + program + " · " + n + "개");
+        MarkDirty();
     }
 
     // 끌어 놓은 사각형의 네 변이 모두 가까운 구성 요소를 찾는다. 창 거의 전체를 덮는 구성 요소는 뺀다.
@@ -1036,12 +1064,74 @@ public static class VeilApp {
         return n.Length > 0 && n.Length <= 100 && n.All(c => !char.IsControl(c) && c != '\\' && c != '/' && c != '|' && c != '\t');
     }
 
+    // ── 언제 다시 계산할지 ──────────────────────────────────────
+    // 예전에는 50ms 마다 화면의 모든 창을 훑었다(코어 하나 기준 27%). 지금은 Windows 의 창 변화 알림을 받을 때,
+    // 맨 앞 창이나 엿보기 상태가 바뀔 때, 로그 터미널에 줄을 올릴 때만 계산한다. 알림이 빠질 때를 대비해 1초에 한 번은 계산한다.
+
+    static void Subscribe() {
+        hookProc = OnWinEvent;
+        var ranges = new[] {
+            new[] { Win.EVENT_SYSTEM_FOREGROUND, Win.EVENT_SYSTEM_FOREGROUND },
+            new[] { Win.EVENT_SYSTEM_MOVESIZESTART, Win.EVENT_SYSTEM_MOVESIZEEND },
+            new[] { Win.EVENT_SYSTEM_MINIMIZESTART, Win.EVENT_SYSTEM_MINIMIZEEND },
+            new[] { Win.EVENT_OBJECT_CREATE, Win.EVENT_OBJECT_REORDER },          // 생김 · 없어짐 · 보임 · 숨음 · 순서 바뀜
+            new[] { Win.EVENT_OBJECT_LOCATIONCHANGE, Win.EVENT_OBJECT_LOCATIONCHANGE },
+            new[] { Win.EVENT_OBJECT_CLOAKED, Win.EVENT_OBJECT_UNCLOAKED },
+        };
+        // 자기 프로그램(가림 조각) 의 변화는 받지 않는다. 받으면 가림을 옮긴 일이 다시 알림이 되어 끝없이 돈다.
+        foreach (var r in ranges) {
+            IntPtr h = Win.SetWinEventHook(r[0], r[1], IntPtr.Zero, hookProc, 0, 0, Win.WINEVENT_OUTOFCONTEXT | Win.WINEVENT_SKIPOWNPROCESS);
+            if (h != IntPtr.Zero) hooks.Add(h);
+        }
+        Log("창 변화 알림 구독 " + hooks.Count + "/" + ranges.Length);
+    }
+
+    static void OnWinEvent(IntPtr hook, uint ev, IntPtr hwnd, int idObject, int idChild, uint thread, uint time) {
+        if (ev == Win.EVENT_SYSTEM_FOREGROUND) { MarkDirty(); return; }
+        // 창 자체의 변화만 본다. 커서·캐럿·스크롤 막대 같은 창 안 물체의 변화는 무시한다.
+        if (hwnd == IntPtr.Zero || idObject != 0 || idChild != 0) return;
+        IntPtr root = Win.GetAncestor(hwnd, Win.GA_ROOT);
+        if (root == IntPtr.Zero) root = hwnd;
+        // 가리고 있는 창이나 그 안의 구성 요소(입력칸이 커지는 등)가 바뀌었으면 다시 계산한다.
+        if (groups.ContainsKey(root)) { MarkDirty(); return; }
+        // 아직 안 가린 창이라도, 고른 프로그램의 창이 새로 뜨거나 보이게 되면 다시 계산한다.
+        if (ev == Win.EVENT_OBJECT_LOCATIONCHANGE || root != hwnd) return;
+        uint pid; Win.GetWindowThreadProcessId(hwnd, out pid);
+        string n = NameOf(pid);
+        if (n != null && (selected.Contains(n) || n.Equals(pendingEdit, StringComparison.OrdinalIgnoreCase))) MarkDirty();
+    }
+
+    static void MarkDirty() { if (updateTimer != null && !updateTimer.Enabled) updateTimer.Start(); }
+
+    // 80ms 마다 하는 가벼운 확인. 모든 창을 훑지 않는다.
+    static void Poll() {
+        var now = DateTime.Now;
+        if (now > endAt) { Quit("시간이 다 되어 끝냄"); return; }
+        IntPtr fg = Win.GetForegroundWindow();
+        if (fg != lastFg) { lastFg = fg; MarkDirty(); }
+
+        // 엿보기: Ctrl 을 누른 채 덮인 창 위에 마우스가 있는지
+        IntPtr peekRoot = IntPtr.Zero;
+        if ((Win.GetAsyncKeyState(Win.VK_CONTROL) & 0x8000) != 0) {
+            Win.POINT cur; Win.GetCursorPos(out cur);
+            foreach (var g in groups.Values)
+                if (g.Frame.Contains(cur.X, cur.Y)) { peekRoot = g.Root; break; }
+        }
+        if (peekRoot != lastPeekRoot) { lastPeekRoot = peekRoot; MarkDirty(); }
+
+        foreach (var g in groups.Values)
+            if (g.Owner == null && Skins.IsLog(g.Skin) && now >= g.NextLogAt) { MarkDirty(); break; }
+
+        if ((now - lastFull).TotalMilliseconds >= 1000) MarkDirty();
+    }
+
     // ── 창 따라가기 ──────────────────────────────────────────
 
-    static void Tick() {
-        if (DateTime.Now > endAt) { Quit("시간이 다 되어 끝냄"); return; }
-        tick++;
-        if (tick % 40 == 0) pidNames.Clear(); // 끝난 프로세스 번호가 재사용될 수 있어 2초마다 비운다.
+    static void Update() {
+        var now = DateTime.Now;
+        lastFull = now;
+        // 끝난 프로세스 번호가 다른 프로그램에 재사용될 수 있어 5초마다 비운다.
+        if ((now - lastPidClear).TotalSeconds >= 5) { pidNames.Clear(); lastPidClear = now; }
 
         if (editor != null && (!Win.IsWindow(editingTarget) || Win.IsIconic(editingTarget) || !Win.IsWindowVisible(editingTarget)))
             editor.Close();
@@ -1106,6 +1196,7 @@ public static class VeilApp {
             VeilGroup owner = null;
             if (roots[h] != h) groups.TryGetValue(roots[h], out owner);
             g.Owner = owner;
+            g.Root = roots[h];
 
             bool editing = editingTarget != IntPtr.Zero && (h == editingTarget || roots[h] == editingTarget);
             bool active = editing || fg == h || (fgRoot != IntPtr.Zero && roots[h] == fgRoot);
@@ -1118,7 +1209,7 @@ public static class VeilApp {
             // 딸린 창은 통째로 덮는다. 주인 창은 보이게 둘 영역을 뺀 나머지를 덮는다.
             var holes = new List<Rectangle>();
             if (!g.Owned) {
-                if (g.Kind == null || tick - g.KindTick >= 20) { g.Kind = KindOf(h); g.KindTick = tick; }
+                if (g.Kind == null || (now - g.KindAt).TotalSeconds >= 1) { g.Kind = KindOf(h); g.KindAt = now; }
                 foreach (var a in areas) {
                     if (!a.Program.Equals(winNames[h], StringComparison.OrdinalIgnoreCase) || !a.Kind.IsSubsetOf(g.Kind)) continue;
                     var r = Rectangle.Intersect(ResolveArea(h, a, rect, g.Scale), rect);
@@ -1225,12 +1316,19 @@ public static class VeilApp {
         return list;
     }
 
+    // 실행 파일 이름(확장자 없이). 그 프로세스 하나에게만 물어본다.
+    // Process.GetProcessById 는 부를 때마다 컴퓨터의 모든 프로세스 목록을 읽어서, 창이 많으면 CPU 를 꽤 쓴다.
+    // 관리자 권한 프로세스처럼 열 수 없는 것만 예전 방식으로 알아낸다.
     static string NameOf(uint pid) {
         string n;
         if (pidNames.TryGetValue(pid, out n)) return n;
-        try { using (var p = Process.GetProcessById((int)pid)) n = p.ProcessName; }
-        catch (ArgumentException) { n = null; }
-        catch (InvalidOperationException) { n = null; }
+        string path = PathOf(pid);
+        if (path != null) n = Path.GetFileNameWithoutExtension(path);
+        else {
+            try { using (var p = Process.GetProcessById((int)pid)) n = p.ProcessName; }
+            catch (ArgumentException) { n = null; }
+            catch (InvalidOperationException) { n = null; }
+        }
         pidNames[pid] = n;
         return n;
     }
@@ -1259,7 +1357,9 @@ public static class VeilApp {
     }
 
     static void Quit(string why) {
-        timer.Stop();
+        pollTimer.Stop(); updateTimer.Stop();
+        foreach (var h in hooks) Win.UnhookWinEvent(h);
+        hooks.Clear();
         if (editor != null && !editor.IsDisposed) editor.Close();
         foreach (var g in groups.Values) g.Dispose();
         groups.Clear();
