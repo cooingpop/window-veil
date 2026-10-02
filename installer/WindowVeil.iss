@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #error Pass AppVersion from VERSION with /DAppVersion=MAJOR.MINOR.PATCH
 #endif
 
 [Setup]
