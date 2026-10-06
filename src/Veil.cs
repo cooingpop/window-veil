@@ -871,7 +871,17 @@ public static class VeilApp {
     static NotifyIcon tray;
     static ContextMenuStrip menu;
     static Font boldMenuFont; // 가리는 중인 프로그램 이름은 굵게
-    static ToolStripMenuItem statusItem;
+    static ToolStripLabel statusItem;
+
+    // 메뉴의 묶음 제목. 비활성 메뉴 항목(회색)으로 만들면 「누르면 되는데 꺼진 기능」 처럼 보여서, 누를 수 없는 이름표로 굵게 쓴다.
+    static ToolStripLabel Header(string text) {
+        return new ToolStripLabel(text) { Font = boldMenuFont, ForeColor = Color.FromArgb(0, 84, 166), Margin = new Padding(6, 6, 0, 2) };
+    }
+
+    // 상태나 설명 문장. 이것도 회색 비활성 대신 일반 글씨로 쓴다.
+    static ToolStripLabel Info(string text, Color color) {
+        return new ToolStripLabel(text) { ForeColor = color, Margin = new Padding(6, 2, 0, 2) };
+    }
     static HelpForm helpForm;
     static AreaEditor editor;
     static IntPtr editingTarget = IntPtr.Zero;
@@ -955,10 +965,10 @@ public static class VeilApp {
         Beat("메뉴 만들기");
         foreach (ToolStripItem old in menu.Items) if (old.Image != null) old.Image.Dispose();
         menu.Items.Clear();
-        statusItem = new ToolStripMenuItem(StatusText()) { Enabled = false };
+        statusItem = Info(StatusText(), SystemColors.ControlText);
         menu.Items.Add(statusItem);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(new ToolStripMenuItem("가릴 프로그램 고르기 · 체크하면 쓰지 않을 때 가려집니다") { Enabled = false });
+        menu.Items.Add(Header("가릴 프로그램 고르기 · 체크하면 쓰지 않을 때 가려집니다"));
 
         var running = new Dictionary<string, uint>(StringComparer.OrdinalIgnoreCase);
         foreach (var w in EnumAppWindows()) {
@@ -980,14 +990,15 @@ public static class VeilApp {
             rows.Add(new KeyValuePair<string, ToolStripMenuItem>(label, item));
         }
         if (rows.Count == 0)
-            menu.Items.Add(new ToolStripMenuItem("지금 창이 떠 있는 프로그램이 없습니다") { Enabled = false });
+            menu.Items.Add(Info("지금 창이 떠 있는 프로그램이 없습니다", SystemColors.GrayText));
         foreach (var row in rows.OrderBy(r => r.Key, StringComparer.CurrentCultureIgnoreCase))
             menu.Items.Add(row.Value);
 
         // 알림 배너가 아직 켜져 있어 내용이 그대로 보이는 앱은 메뉴 맨 위에서 바로 알린다. 누르면 끄는 방법을 보여 준다.
+        // 「새 알림」 표시를 껐더라도 가리는 앱의 내용이 배너로 새는 것은 따로 알려야 하므로 그 설정과 상관없이 띄운다.
         int at = 1;
         foreach (var name in selected.OrderBy(n => Shown(n), StringComparer.CurrentCultureIgnoreCase)) {
-            if (!NotifyWanted(name) || !BannerOn(name)) continue;
+            if (NotifyKeysOf(name).Count == 0 || !BannerOn(name)) continue;
             string app = Shown(name);
             string nameForGuide = name;
             var warn = new ToolStripMenuItem(app + " 알림 배너가 켜져 있어 내용이 보입니다 · Windows 설정에서 끄는 방법 보기") { ForeColor = Color.Firebrick };
@@ -998,11 +1009,11 @@ public static class VeilApp {
         // 가리고 있는 프로그램마다 가림 모양과 보이게 둘 영역을 정한다.
         if (selected.Count > 0) {
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(new ToolStripMenuItem("가린 창 꾸미기 · 가림 모양과 보이게 둘 영역을 정합니다") { Enabled = false });
+            menu.Items.Add(Header("가린 창 꾸미기 · 프로그램을 고르면 가림 모양, 보이게 둘 영역, 알림을 정합니다"));
             foreach (var name in selected.OrderBy(n => Shown(n), StringComparer.CurrentCultureIgnoreCase)) {
                 string path; paths.TryGetValue(name, out path);
                 var parent = new ToolStripMenuItem(Shown(name)) { Tag = "settings:" + name, Image = IconOf(path) };
-                parent.DropDownItems.Add(new ToolStripMenuItem("가림 모양") { Enabled = false });
+                parent.DropDownItems.Add(Header("가림 모양 · 하나를 고르세요"));
                 string current = SkinOf(name);
                 foreach (var sk in Skins.All) {
                     string key = sk[0], n2 = name;
@@ -1023,7 +1034,7 @@ public static class VeilApp {
                 parent.DropDownItems.Add(new ToolStripSeparator());
                 // Windows 알림을 쓰는 앱(Discord 등)은 배너가 가림보다 위에 그려져 덮을 수 없다.
                 // 그래서 알림이 오면 창 가림이 앱 이름과 건수만 알려 주고, 배너는 Windows 설정에서 한 번 끄게 안내한다.
-                parent.DropDownItems.Add(new ToolStripMenuItem("알림") { Enabled = false });
+                parent.DropDownItems.Add(Header("알림 · 이 프로그램에 알림이 올 때"));
                 string nameForNotify = name, app = Shown(name);
                 if (NotifyKeysOf(name).Count > 0) {
                     var notify = new ToolStripMenuItem("알림이 오면 「" + app + " 새 알림」 표시하기 (" + app + " 배너와는 별개)") { Checked = !notifyOff.Contains(name) };
@@ -1034,11 +1045,11 @@ public static class VeilApp {
                         banner.Click += (s, e) => ShowGuide(nameForNotify);
                         parent.DropDownItems.Add(banner);
                     } else {
-                        parent.DropDownItems.Add(new ToolStripMenuItem("Windows 알림 배너가 꺼져 있어 내용이 보이지 않습니다") { Enabled = false });
+                        parent.DropDownItems.Add(Info("✓ Windows 알림 배너가 꺼져 있어 내용이 보이지 않습니다", Color.ForestGreen));
                     }
                 } else {
-                    parent.DropDownItems.Add(new ToolStripMenuItem("Windows 알림을 보낸 기록이 없습니다") { Enabled = false });
-                    parent.DropDownItems.Add(new ToolStripMenuItem("이 앱이 직접 띄우는 알림 창은 다른 창처럼 가려집니다") { Enabled = false });
+                    parent.DropDownItems.Add(Info("Windows 알림을 보낸 기록이 없습니다.", SystemColors.ControlText));
+                    parent.DropDownItems.Add(Info("이 프로그램이 직접 띄우는 알림 창은 다른 창처럼 가려집니다.", SystemColors.ControlText));
                 }
                 menu.Items.Add(parent);
             }
