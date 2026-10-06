@@ -11,6 +11,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 // 창 가림.
 // 트레이에 상주하며, 고른 프로그램의 창을 따라다니다가 그 창을 쓰지 않을 때만 덮는다.
@@ -36,6 +37,7 @@ static class Win {
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT p);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr ctx);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] public static extern int SetWindowCompositionAttribute(IntPtr h, ref CompAttr d);
@@ -67,6 +69,7 @@ static class Win {
     public const int DWMWA_CLOAKED = 14;
     public const uint SWP_NOACTIVATE = 0x0010;
     public const int VK_CONTROL = 0x11;
+    public const int SW_RESTORE = 9;
     public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 }
 
@@ -640,6 +643,110 @@ class AreaEditor : Form {
     }
 }
 
+// 「Discord 새 알림」 처럼 내용 없이 알려 주는 작은 창. 포커스를 뺏지 않고, 누르면 그 프로그램으로 넘어간다.
+class SignalForm : Form {
+    readonly string app;
+    readonly Action onClick;
+    readonly System.Windows.Forms.Timer hideTimer = new System.Windows.Forms.Timer { Interval = 6000 };
+    int count;
+    public float UiScale = 1f;
+
+    public SignalForm(string app, Action onClick) {
+        this.app = app;
+        this.onClick = onClick;
+        FormBorderStyle = FormBorderStyle.None;
+        StartPosition = FormStartPosition.Manual;
+        ShowInTaskbar = false;
+        TopMost = true;
+        BackColor = Color.FromArgb(32, 32, 32);
+        Cursor = Cursors.Hand;
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint, true);
+        hideTimer.Tick += (s, e) => { hideTimer.Stop(); Hide(); count = 0; };
+    }
+
+    protected override bool ShowWithoutActivation { get { return true; } }
+
+    protected override CreateParams CreateParams {
+        get { var cp = base.CreateParams; cp.ExStyle |= 0x08000000 | 0x00000080 | 0x00000008; return cp; }
+    }
+
+    protected override void WndProc(ref Message m) {
+        const int WM_MOUSEACTIVATE = 0x21, MA_NOACTIVATE = 3;
+        if (m.Msg == WM_MOUSEACTIVATE) { m.Result = (IntPtr)MA_NOACTIVATE; return; }
+        base.WndProc(ref m);
+    }
+
+    // 6초 안에 또 오면 건수만 늘리고 시간을 다시 잰다.
+    public void Add(int n) {
+        count += n;
+        if (!IsHandleCreated) CreateHandle();
+        UiScale = VeilApp.ScaleOf(Handle);
+        Size = new Size((int)Math.Round(330 * UiScale), (int)Math.Round(64 * UiScale));
+        if (!Visible) Show();
+        Invalidate();
+        hideTimer.Stop(); hideTimer.Start();
+    }
+
+    protected override void OnMouseUp(MouseEventArgs e) {
+        hideTimer.Stop(); Hide(); count = 0;
+        onClick();
+    }
+
+    protected override void OnPaint(PaintEventArgs e) {
+        var g = e.Graphics;
+        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        float s = UiScale;
+        using (var border = new Pen(Color.FromArgb(70, 70, 70))) g.DrawRectangle(border, 0, 0, Width - 1, Height - 1);
+        using (var bold = new Font("Malgun Gothic", 10.5f * 96f / 72f * s, FontStyle.Bold, GraphicsUnit.Pixel))
+        using (var body = new Font("Malgun Gothic", 9f * 96f / 72f * s, GraphicsUnit.Pixel))
+        using (var dim = new SolidBrush(Color.FromArgb(190, 190, 190))) {
+            g.DrawString(app + " 새 알림" + (count > 1 ? " " + count + "건" : ""), bold, Brushes.White, 16 * s, 11 * s);
+            g.DrawString("내용은 숨겼습니다 · 누르면 " + app + " 로 넘어갑니다", body, dim, 16 * s, 36 * s);
+        }
+    }
+}
+
+// 「알림이 오면 내용 없이 알려주기」 를 켤 때 한 번 보여 주는 안내. 앱별 알림 배너는 Windows 설정에서만 끌 수 있다.
+class NotifyGuideForm : Form {
+    public NotifyGuideForm(string app) {
+        Text = app + " 알림을 내용 없이 받기";
+        Icon = SystemIcons.Shield;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false; MinimizeBox = false;
+        StartPosition = FormStartPosition.CenterScreen;
+        AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        Font = new Font("Malgun Gothic", 10);
+
+        int width;
+        using (var g = CreateGraphics()) width = (int)(460 * g.DpiX / 96f);
+        var flow = new FlowLayoutPanel {
+            FlowDirection = FlowDirection.TopDown, WrapContents = false,
+            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(18, 12, 18, 16)
+        };
+        flow.Controls.Add(new Label {
+            AutoSize = true, MaximumSize = new Size(width, 0),
+            Text = app + " 알림 배너는 Windows 가 모든 창보다 위에 그려서 창 가림이 덮을 수 없습니다. " +
+                   "그래서 배너는 Windows 설정에서 끄고, 알림이 오면 창 가림이 「" + app + " 새 알림」 이라고만 알려 드립니다.\r\n\r\n" +
+                   "1. 아래 「Windows 알림 설정 열기」 를 누릅니다.\r\n" +
+                   "2. 「앱 및 다른 보낸 사람의 알림」 목록에서 「" + app + "」 을 누릅니다.\r\n" +
+                   "3. 왼쪽 그림 아래의 「알림 배너 표시」 체크를 풉니다. 맨 위 「알림」 스위치와 「알림 센터에서 알림 표시」 는 그대로 둡니다.\r\n\r\n" +
+                   "알림 내용은 Windows 알림 센터에 그대로 남습니다. " + app + " 를 쓰고 있을 때는 따로 알리지 않습니다."
+        });
+        var row = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false, Margin = new Padding(0, 14, 0, 0) };
+        var open = new Button { Text = "Windows 알림 설정 열기", AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
+        open.Click += (s, e) => {
+            try { Process.Start("ms-settings:notifications"); }
+            catch (System.ComponentModel.Win32Exception) { MessageBox.Show("설정 화면을 열지 못했습니다. 시작 → 설정 → 시스템 → 알림 으로 가 주세요.", Text); }
+        };
+        var close = new Button { Text = "닫기", AutoSize = true };
+        close.Click += (s, e) => Close();
+        row.Controls.Add(open); row.Controls.Add(close);
+        flow.Controls.Add(row);
+        Controls.Add(flow);
+        AcceptButton = open; CancelButton = close;
+    }
+}
+
 // 방패 아이콘 메뉴의 「사용법 보기」. 할 일별로 묶어 보여준다.
 class HelpForm : Form {
     static readonly string[][] Sections = {
@@ -648,8 +755,9 @@ class HelpForm : Form {
         new[] { "그 창으로 돌아가기", "덮인 창을 클릭하면 그 창으로 넘어가고 가림이 걷힙니다. 작업 표시줄이나 Alt+Tab 으로 넘어가도 같습니다." },
         new[] { "가림 모양 바꾸기", "메뉴의 「가린 창 꾸미기」 에서 프로그램을 고르면, 흐림 대신 빈 터미널, 로그가 올라가는 터미널, 빈 메모장, 빈 표, 직접 고른 그림으로 덮을 수 있습니다. 가려져 있다는 것 자체를 알아채기 어렵게 하려는 것입니다. 작업 표시줄과 Alt+Tab 에는 원래 프로그램이 그대로 보입니다." },
         new[] { "일부만 보이게 두기", "같은 곳에서 「보이게 둘 영역 조절하기」 를 누르고 그 프로그램 창을 클릭하면, 창 위에 파란 사각형이 뜹니다. 가운데를 끌면 옮겨지고 가장자리를 끌면 크기가 바뀝니다. 입력칸 같은 구성 요소 가까이 놓으면 딱 맞게 붙고, 그 뒤로는 그 구성 요소를 따라갑니다. 저장하면 같은 종류의 창에 모두 적용됩니다. 영역 안의 내용은 지나가는 사람에게도 보입니다." },
+        new[] { "알림 내용 숨기기", "Discord 처럼 Windows 알림을 쓰는 앱은 알림 배너가 모든 창보다 위에 그려져서 덮을 수 없습니다. 「가린 창 꾸미기」 에서 그 프로그램의 「알림이 오면 내용 없이 알려주기」 를 켜고, 안내에 따라 Windows 설정에서 그 앱의 알림 배너를 끄세요. 그러면 알림이 올 때 「Discord 새 알림」 처럼 내용 없이 알려 드립니다. 누르면 그 프로그램으로 넘어가고, 그 프로그램을 쓰고 있을 때는 알리지 않습니다." },
         new[] { "가림 그만두기", "목록에서 체크를 풀면 그 프로그램만 그만 가립니다. 전부 잠깐 멈추려면 「모든 가림 잠시 끄기」, 프로그램을 닫으려면 「창 가림 끝내기」 를 누릅니다." },
-        new[] { "저장하는 것", "고른 프로그램 이름, 가림 모양(그림을 골랐다면 그 파일 위치), 보이게 둘 영역의 위치만 %APPDATA%\\WindowVeil 에 저장합니다. 창 제목이나 화면 내용은 저장하지 않습니다." },
+        new[] { "저장하는 것", "고른 프로그램 이름, 가림 모양(그림을 골랐다면 그 파일 위치), 알림 신호를 켰는지, 보이게 둘 영역의 위치만 %APPDATA%\\WindowVeil 에 저장합니다. 창 제목이나 화면 내용은 저장하지 않습니다." },
     };
 
     public HelpForm() {
@@ -688,6 +796,10 @@ public static class VeilApp {
 
     // targets.txt 한 줄은 「프로그램 이름」 또는 「프로그램 이름|skin=모양」.
     const string SkinFlag = "skin=";
+    const string NotifyFlag = "notify";
+
+    // Windows 가 앱마다 알림 설정과 「마지막 알림 시각」 을 적어 두는 곳. 알림 내용은 여기 없다.
+    const string NotifySettingsKey = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings";
 
     static string logPath;
     static string settingsPath;
@@ -702,6 +814,10 @@ public static class VeilApp {
     static readonly Random rng = new Random();
     static readonly HashSet<string> selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     static readonly Dictionary<string, string> skins = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    static readonly HashSet<string> notifyOn = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    static readonly Dictionary<string, long> lastNotifySeen = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+    static readonly Dictionary<string, SignalForm> signals = new Dictionary<string, SignalForm>(StringComparer.OrdinalIgnoreCase);
+    static DateTime lastNotifyCheck = DateTime.MinValue;
     static readonly List<Area> areas = new List<Area>();
     static readonly Dictionary<string, string> displayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     static readonly Dictionary<uint, string> pidNames = new Dictionary<uint, string>();
@@ -845,6 +961,18 @@ public static class VeilApp {
                 var edit = new ToolStripMenuItem("보이게 둘 영역 조절하기" + (count > 0 ? " (지금 " + count + "개)" : ""));
                 edit.Click += (s, e) => BeginEdit(nameForEdit);
                 parent.DropDownItems.Add(edit);
+                parent.DropDownItems.Add(new ToolStripSeparator());
+                // Windows 알림을 쓰는 앱(Discord 등)은 배너가 가림보다 위에 그려져 덮을 수 없다.
+                // 그래서 배너는 Windows 설정에서 끄게 안내하고, 알림이 오면 창 가림이 내용 없이 알려 준다.
+                string nameForNotify = name;
+                bool hasRecord = NotifyKeysOf(name).Count > 0;
+                var notify = new ToolStripMenuItem(hasRecord
+                    ? "알림이 오면 내용 없이 알려주기"
+                    : "알림이 오면 내용 없이 알려주기 · Windows 알림을 보낸 기록이 없어 쓸 수 없음") {
+                    Checked = notifyOn.Contains(name), Enabled = hasRecord || notifyOn.Contains(name)
+                };
+                notify.Click += (s, e) => ToggleNotify(nameForNotify);
+                parent.DropDownItems.Add(notify);
                 menu.Items.Add(parent);
             }
         }
@@ -1039,7 +1167,7 @@ public static class VeilApp {
     // ── 저장 · 프로그램 이름, 가림 모양, 영역 위치만 저장한다. 창 제목은 남기지 않는다 ──
 
     static void LoadSelection() {
-        selected.Clear(); skins.Clear();
+        selected.Clear(); skins.Clear(); notifyOn.Clear();
         if (!File.Exists(settingsPath)) return;
         foreach (var line in File.ReadAllLines(settingsPath, Encoding.UTF8)) {
             var parts = line.Split('|');
@@ -1050,13 +1178,18 @@ public static class VeilApp {
                 string flag = f.Trim();
                 if (flag.StartsWith(SkinFlag, StringComparison.Ordinal) && Skins.IsValidKey(flag.Substring(SkinFlag.Length)))
                     skins[n] = flag.Substring(SkinFlag.Length);
+                else if (flag == NotifyFlag) notifyOn.Add(n);
             }
         }
     }
 
     static void SaveSelection() {
-        var lines = selected.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-            .Select(n => Skins.IsBlur(SkinOf(n)) ? n : n + "|" + SkinFlag + SkinOf(n)).ToArray();
+        var lines = selected.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).Select(n => {
+            var line = n;
+            if (!Skins.IsBlur(SkinOf(n))) line += "|" + SkinFlag + SkinOf(n);
+            if (notifyOn.Contains(n)) line += "|" + NotifyFlag;
+            return line;
+        }).ToArray();
         try { File.WriteAllLines(settingsPath, lines, Encoding.UTF8); }
         catch (IOException ex) { Log("고른 목록 저장 실패 · " + ex.Message); }
     }
@@ -1138,6 +1271,7 @@ public static class VeilApp {
             if (g.Owner == null && Skins.IsLog(g.Skin) && now >= g.NextLogAt) { MarkDirty(); break; }
 
         if ((now - lastFull).TotalMilliseconds >= 1000) MarkDirty();
+        if ((now - lastNotifyCheck).TotalMilliseconds >= 1000) { lastNotifyCheck = now; CheckNotifications(); }
     }
 
     // ── 창 따라가기 ──────────────────────────────────────────
@@ -1371,7 +1505,96 @@ public static class VeilApp {
         return dpi == 0 ? 1f : dpi / 96f;
     }
 
+    // ── 알림 신호 ──────────────────────────────────────────
+    // 앱이 Windows 알림을 보내면 Windows 가 그 앱의 「마지막 알림 시각」 을 갱신한다(배너를 꺼도 갱신된다).
+    // 그 값만 1초마다 읽어서, 바뀌면 「Discord 새 알림」 처럼 내용 없이 알려 준다. 알림 내용은 읽지 않는다.
+
+    // 프로그램 이름이 들어간 알림 등록 항목. 예: Discord → com.squirrel.Discord.Discord
+    static List<string> NotifyKeysOf(string program) {
+        var found = new List<string>();
+        if (program.Length < 3) return found;
+        using (var k = Registry.CurrentUser.OpenSubKey(NotifySettingsKey)) {
+            if (k == null) return found;
+            foreach (var sub in k.GetSubKeyNames())
+                if (sub.IndexOf(program, StringComparison.OrdinalIgnoreCase) >= 0) found.Add(sub);
+        }
+        return found;
+    }
+
+    static long LastNotifyTime(string sub) {
+        using (var k = Registry.CurrentUser.OpenSubKey(NotifySettingsKey + "\\" + sub)) {
+            if (k == null) return 0;
+            object v = k.GetValue("LastNotificationAddedTime");
+            return v is long ? (long)v : 0;
+        }
+    }
+
+    static void CheckNotifications() {
+        foreach (var program in notifyOn) {
+            int fresh = 0;
+            foreach (var sub in NotifyKeysOf(program)) {
+                long t = LastNotifyTime(sub), seen;
+                // 처음 보는 항목은 지금 시각을 기준으로 삼는다. 켜자마자 지난 알림을 알리지 않게.
+                if (!lastNotifySeen.TryGetValue(sub, out seen)) { lastNotifySeen[sub] = t; continue; }
+                if (t > seen) { lastNotifySeen[sub] = t; fresh++; }
+            }
+            if (fresh == 0 || IsUsing(program)) continue;
+            SignalForm f;
+            if (!signals.TryGetValue(program, out f) || f.IsDisposed) {
+                string name = program;
+                f = new SignalForm(Shown(program), () => GoTo(name));
+                signals[program] = f;
+            }
+            f.Add(fresh);
+            PlaceSignals();
+            Log("알림 신호 · " + program + " · " + fresh + "건");
+        }
+    }
+
+    // 그 프로그램을 지금 쓰고 있으면(맨 앞 창이 그 프로그램 것이면) 알리지 않는다. 화면에서 바로 보이기 때문이다.
+    static bool IsUsing(string program) {
+        IntPtr fg = Win.GetForegroundWindow();
+        if (fg == IntPtr.Zero) return false;
+        uint pid; Win.GetWindowThreadProcessId(fg, out pid);
+        return program.Equals(NameOf(pid), StringComparison.OrdinalIgnoreCase);
+    }
+
+    // 알림 신호는 Windows 알림이 뜨는 자리(주 모니터 오른쪽 아래)에 아래부터 쌓는다.
+    static void PlaceSignals() {
+        var wa = Screen.PrimaryScreen.WorkingArea;
+        int y = wa.Bottom;
+        foreach (var f in signals.Values.Where(x => !x.IsDisposed && x.Visible)) {
+            int gap = (int)Math.Round(12 * f.UiScale);
+            y -= f.Height + gap;
+            f.Location = new Point(wa.Right - f.Width - gap, y);
+        }
+    }
+
+    static void GoTo(string program) {
+        var w = EnumAppWindows().Where(x => program.Equals(NameOf(x.Pid), StringComparison.OrdinalIgnoreCase)
+            && Win.GetWindow(x.H, Win.GW_OWNER) == IntPtr.Zero).ToList();
+        if (w.Count == 0) { Balloon(Shown(program) + " 창이 없습니다", "작업 표시줄 오른쪽 아이콘에서 " + Shown(program) + " 을 열어 주세요."); return; }
+        var target = w[0];
+        if (target.Minimized) Win.ShowWindow(target.H, Win.SW_RESTORE);
+        Win.SetForegroundWindow(target.H);
+    }
+
+    static void ToggleNotify(string program) {
+        if (notifyOn.Contains(program)) {
+            notifyOn.Remove(program);
+            Log("알림 신호 끔 · " + program);
+        } else {
+            notifyOn.Add(program);
+            foreach (var sub in NotifyKeysOf(program)) lastNotifySeen[sub] = LastNotifyTime(sub);
+            Log("알림 신호 켬 · " + program);
+            new NotifyGuideForm(Shown(program)).Show();
+        }
+        SaveSelection();
+    }
+
     static void Quit(string why) {
+        foreach (var f in signals.Values) if (!f.IsDisposed) f.Close();
+        signals.Clear();
         pollTimer.Stop(); updateTimer.Stop();
         foreach (var h in hooks) Win.UnhookWinEvent(h);
         hooks.Clear();
