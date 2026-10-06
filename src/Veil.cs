@@ -736,7 +736,7 @@ class NotifyGuideForm : Form {
     readonly System.Windows.Forms.Timer watch = new System.Windows.Forms.Timer { Interval = 1000 };
 
     public NotifyGuideForm(string app, Func<bool> bannerOn) {
-        Text = L.T(app + " 알림을 내용 없이 받기", "Get " + app + " notifications without their content");
+        Text = L.T(app + " 알림 내용 가리기", "Hide " + app + " notification content");
         Icon = SystemIcons.Shield;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; MinimizeBox = false;
@@ -755,10 +755,10 @@ class NotifyGuideForm : Form {
         Action refresh = () => {
             bool on = bannerOn();
             status.Text = on
-                ? L.T("지금 상태 · " + app + " 알림 배너 켜짐. 알림이 오면 내용이 그대로 보입니다.",
-                      "Current state · " + app + " notification banners are on. Their content is visible.")
-                : L.T("✓ 지금 상태 · " + app + " 알림 배너 꺼짐. 이제 「" + app + " 새 알림」 으로만 알려 드립니다. 이 창을 닫아도 됩니다.",
-                      "✓ Current state · " + app + " notification banners are off. You will only see \"" + app + ": new notification\". You can close this window.");
+                ? L.T("알림 내용 가리기: 아직 안 됨 · " + app + " 알림 배너가 켜져 있어서, 알림이 오면 내용이 그대로 보입니다.",
+                      "Hide notification content: not set up · " + app + " banners are on, so their content is visible.")
+                : L.T("✓ 알림 내용 가리기: 됨 · " + app + " 알림 배너가 꺼졌습니다. 이제 「" + app + " 새 알림」 으로만 알려 드립니다. 이 창을 닫아도 됩니다.",
+                      "✓ Hide notification content: done · " + app + " banners are off. You will only see \"" + app + ": new notification\". You can close this window.");
             status.ForeColor = on ? Color.Firebrick : Color.ForestGreen;
         };
         refresh();
@@ -766,6 +766,13 @@ class NotifyGuideForm : Form {
         watch.Start();
         FormClosed += (s, e) => { watch.Stop(); watch.Dispose(); };
         flow.Controls.Add(status);
+        // 이 일은 창 가림이 아니라 Windows 설정 앱에서 한다는 것을 맨 먼저 알린다.
+        flow.Controls.Add(new Label {
+            AutoSize = true, MaximumSize = new Size(width, 0), Margin = new Padding(0, 0, 0, 10),
+            Font = new Font(Font, FontStyle.Bold), ForeColor = Color.FromArgb(0, 84, 166),
+            Text = L.T("이 설정은 창 가림이 아니라 Windows 설정 앱에서, 앱마다 한 번만 하면 됩니다.",
+                       "You set this in the Windows Settings app, not in Window Veil, and only once per app.")
+        });
         flow.Controls.Add(new Label {
             AutoSize = true, MaximumSize = new Size(width, 0),
             Text = L.T(
@@ -829,9 +836,9 @@ class HelpForm : Form {
         new[] { L.T("어떤 앱에서 알림이 왔는지 보기", "See which app got a notification"),
                 L.T("가리고 있는 앱이 Windows 알림을 보내면, 오른쪽 아래에 「Discord 새 알림」 처럼 앱 이름과 건수만 알려 드립니다. 누르면 그 앱으로 넘어가고, 그 앱을 쓰고 있을 때는 알리지 않습니다. 앱마다 「가린 창 꾸미기」 → 앱 → 「알림」 에서 끌 수 있습니다.",
                     "When a covered app sends a Windows notification, the bottom-right corner shows only the app name and a count, such as \"Discord: new notification\". Click it to open the app. Nothing is shown while you are using that app. Turn it off per app under \"Customize covered windows\" > app > \"Notifications\".") },
-        new[] { L.T("알림 내용 숨기기", "Hide notification content"),
-                L.T("Windows 알림 배너는 모든 창보다 위에 그려져서 가릴 수 없습니다. 메뉴 맨 위에 「알림 배너가 켜져 있어 내용이 보입니다」 가 보이면 눌러서 안내대로 Windows 설정에서 그 앱의 알림 배너를 한 번 끄세요. 앱마다, PC 마다 한 번이면 됩니다. 카카오톡처럼 앱이 직접 띄우는 알림 창은 다른 창처럼 가려집니다.",
-                    "Windows notification banners are drawn above every window and cannot be covered. If the top of the menu says an app's banners are on and its content is visible, click it and follow the guide to turn that app's banners off once in Windows Settings. Once per app on each PC is enough. Pop-up windows that an app draws itself, such as KakaoTalk's, are covered like its other windows.") },
+        new[] { L.T("알림 내용 가리기", "Hide notification content"),
+                L.T("Windows 알림 배너는 모든 창보다 위에 그려져서 창 가림이 덮을 수 없고, 대신 끌 수도 없습니다. 그래서 이 설정만은 Windows 설정 앱에서 앱마다 한 번 해야 합니다. 가릴 프로그램을 고를 때 그 앱 배너가 켜져 있으면 방법 안내가 저절로 뜹니다. 나중에는 메뉴 맨 위나 「가린 창 꾸미기」 → 앱 → 「알림 내용 가리기」 에서 상태를 보고 안내를 다시 열 수 있습니다. 카카오톡처럼 앱이 직접 띄우는 알림 창은 이 설정 없이도 다른 창처럼 가려집니다.",
+                    "Windows notification banners are drawn above every window, so Window Veil cannot cover them or turn them off for you. This one step has to be done once per app in the Windows Settings app. When you choose an app to cover and its banners are on, the guide opens by itself. Later you can see the state and reopen the guide at the top of the menu or under \"Customize covered windows\" > app > \"Hide notification content\". Pop-up windows that an app draws itself, such as KakaoTalk's, are covered like its other windows without this step.") },
         new[] { L.T("가림 그만두기", "Stop covering"),
                 L.T("목록에서 체크를 풀면 그 프로그램만 그만 가립니다. 전부 잠깐 멈추려면 「모든 가림 잠시 끄기」, 프로그램을 닫으려면 「창 가림 끝내기」 를 누릅니다.",
                     "Uncheck an app in the list to stop covering just that app. To pause everything, choose \"Pause all covers\". To exit, choose \"Quit Window Veil\".") },
@@ -1068,8 +1075,8 @@ public static class VeilApp {
             if (NotifyKeysOf(name).Count == 0 || !BannerOn(name)) continue;
             string app = Shown(name);
             string nameForGuide = name;
-            var warn = new ToolStripMenuItem(L.T(app + " 알림 배너가 켜져 있어 내용이 보입니다 · Windows 설정에서 끄는 방법 보기",
-                                                 app + " notification banners are on, so their content is visible · How to turn them off in Windows Settings")) { ForeColor = Color.Firebrick };
+            var warn = new ToolStripMenuItem(L.T(app + " 알림 내용 가리기: 아직 안 됨 · 누르면 Windows 설정에서 하는 방법 안내",
+                                                 "Hide " + app + " notification content: not set up · Click for how to set it up in Windows Settings")) { ForeColor = Color.Firebrick };
             warn.Click += (s, e) => ShowGuide(nameForGuide);
             menu.Items.Insert(at++, warn);
         }
@@ -1107,18 +1114,23 @@ public static class VeilApp {
                 parent.DropDownItems.Add(Header(L.T("알림 · 이 프로그램에 알림이 올 때", "Notifications · When this app sends one")));
                 string nameForNotify = name, app = Shown(name);
                 if (NotifyKeysOf(name).Count > 0) {
-                    var notify = new ToolStripMenuItem(L.T("알림이 오면 「" + app + " 새 알림」 표시하기 (" + app + " 배너와는 별개)",
-                                                           "Show \"" + app + ": new notification\" (separate from " + app + "'s banners)")) { Checked = !notifyOff.Contains(name) };
+                    // 「알림 내용 가리기」 는 켜고 끄는 스위치가 아니라 지금 상태와 할 일을 보여 주는 줄이다.
+                    // 실제로 바꾸는 곳은 Windows 설정 앱이라서, 누르면 그 방법을 안내한다.
+                    if (BannerOn(name)) {
+                        var hide = new ToolStripMenuItem(L.T("알림 내용 가리기: 아직 안 됨 · 누르면 Windows 설정에서 하는 방법 안내",
+                                                             "Hide notification content: not set up · Click for how to set it up in Windows Settings")) { ForeColor = Color.Firebrick };
+                        hide.Click += (s, e) => ShowGuide(nameForNotify);
+                        parent.DropDownItems.Add(hide);
+                    } else {
+                        var done = new ToolStripMenuItem(L.T("알림 내용 가리기: 됨 ✓ (Windows 설정에서 이 앱의 배너가 꺼져 있음)",
+                                                             "Hide notification content: done ✓ (this app's banners are off in Windows Settings)")) { ForeColor = Color.ForestGreen };
+                        done.Click += (s, e) => ShowGuide(nameForNotify);
+                        parent.DropDownItems.Add(done);
+                    }
+                    var notify = new ToolStripMenuItem(L.T("알림이 오면 「" + app + " 새 알림」 표시하기",
+                                                           "Show \"" + app + ": new notification\" when one arrives")) { Checked = !notifyOff.Contains(name) };
                     notify.Click += (s, e) => ToggleNotify(nameForNotify);
                     parent.DropDownItems.Add(notify);
-                    if (BannerOn(name)) {
-                        var banner = new ToolStripMenuItem(L.T("Windows 알림 배너가 켜져 있어 내용이 보입니다 · Windows 설정에서 끄는 방법 보기",
-                                                               "Windows notification banners are on, so their content is visible · How to turn them off in Windows Settings")) { ForeColor = Color.Firebrick };
-                        banner.Click += (s, e) => ShowGuide(nameForNotify);
-                        parent.DropDownItems.Add(banner);
-                    } else {
-                        parent.DropDownItems.Add(Info(L.T("✓ Windows 알림 배너가 꺼져 있어 내용이 보이지 않습니다", "✓ Windows notification banners are off, so their content is hidden"), Color.ForestGreen));
-                    }
                 } else {
                     parent.DropDownItems.Add(Info(L.T("Windows 알림을 보낸 기록이 없습니다.", "This app has not sent Windows notifications."), SystemColors.ControlText));
                     parent.DropDownItems.Add(Info(L.T("이 프로그램이 직접 띄우는 알림 창은 다른 창처럼 가려집니다.", "Pop-up windows that this app draws itself are covered like its other windows."), SystemColors.ControlText));
@@ -1155,6 +1167,9 @@ public static class VeilApp {
         if (statusItem != null) statusItem.Text = StatusText();
         Log((item.Checked ? L.T("가림 대상 추가 · ", "Cover on · ") : L.T("가림 대상 해제 · ", "Cover off · ")) + name);
         MarkDirty();
+        // 가릴 프로그램으로 고르는 순간, 그 앱의 알림 배너가 켜져 있으면 끄는 방법을 바로 보여 준다.
+        // 메뉴를 뒤지지 않아도 「알림 내용은 Windows 설정에서 따로 가려야 한다」 는 걸 처음부터 알 수 있게.
+        if (item.Checked && NotifyKeysOf(name).Count > 0 && BannerOn(name)) ShowGuide(name);
     }
 
     static string SkinOf(string name) { string k; return skins.TryGetValue(name, out k) ? k : "blur"; }
