@@ -706,9 +706,13 @@ class SignalForm : Form {
     }
 }
 
-// 「알림이 오면 내용 없이 알려주기」 를 켤 때 한 번 보여 주는 안내. 앱별 알림 배너는 Windows 설정에서만 끌 수 있다.
+// 앱의 Windows 알림 배너를 끄는 방법 안내. 배너는 Windows 설정 앱에서만 끌 수 있다.
+// 프로그램이 설정 사본(레지스트리)을 직접 써도 Windows 는 따르지 않는다(시험으로 확인). 그래서 읽기만 한다.
+// 맨 위 상태 줄은 1초마다 다시 읽어서, 사용자가 설정 앱에서 체크를 푸는 순간 「꺼졌습니다」 로 바뀐다.
 class NotifyGuideForm : Form {
-    public NotifyGuideForm(string app) {
+    readonly System.Windows.Forms.Timer watch = new System.Windows.Forms.Timer { Interval = 1000 };
+
+    public NotifyGuideForm(string app, Func<bool> bannerOn) {
         Text = app + " 알림을 내용 없이 받기";
         Icon = SystemIcons.Shield;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -723,19 +727,34 @@ class NotifyGuideForm : Form {
             FlowDirection = FlowDirection.TopDown, WrapContents = false,
             AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(18, 12, 18, 16)
         };
+        // 지금 상태. 설정 앱에서 체크를 푸는 순간 바뀐다.
+        var status = new Label { AutoSize = true, MaximumSize = new Size(width, 0), Margin = new Padding(0, 0, 0, 12), Font = new Font(Font, FontStyle.Bold) };
+        Action refresh = () => {
+            bool on = bannerOn();
+            status.Text = on
+                ? "지금 상태 · " + app + " 알림 배너 켜짐. 알림이 오면 내용이 그대로 보입니다."
+                : "✓ 지금 상태 · " + app + " 알림 배너 꺼짐. 이제 「" + app + " 새 알림」 으로만 알려 드립니다. 이 창을 닫아도 됩니다.";
+            status.ForeColor = on ? Color.Firebrick : Color.ForestGreen;
+        };
+        refresh();
+        watch.Tick += (s, e) => refresh();
+        watch.Start();
+        FormClosed += (s, e) => { watch.Stop(); watch.Dispose(); };
+        flow.Controls.Add(status);
         flow.Controls.Add(new Label {
             AutoSize = true, MaximumSize = new Size(width, 0),
-            Text = app + " 알림 배너는 Windows 가 모든 창보다 위에 그려서 창 가림이 덮을 수 없습니다. " +
-                   "그래서 배너는 Windows 설정에서 한 번 끄고, 알림이 오면 창 가림이 「" + app + " 새 알림」 이라고만 알려 드립니다. " +
-                   "이 설정은 Windows 가 " + app + " 쪽에 저장하므로 PC 마다 한 번이면 되고, 창 가림을 다시 설치해도 그대로입니다. " +
-                   "창 가림은 이 설정을 읽기만 하고 바꾸지 않습니다.\r\n\r\n" +
-                   "1. 아래 「Windows 알림 설정 열기」 를 누릅니다.\r\n" +
-                   "2. 「앱 및 다른 보낸 사람의 알림」 목록에서 「" + app + "」 을 누릅니다.\r\n" +
-                   "3. 왼쪽 그림 아래의 「알림 배너 표시」 체크를 풉니다. 맨 위 「알림」 스위치와 「알림 센터에서 알림 표시」 는 그대로 둡니다.\r\n\r\n" +
+            Text = app + " 알림 배너는 Windows 가 모든 창보다 위에 그려서 창 가림이 덮을 수 없고, 창 가림이 대신 끌 수도 없습니다. " +
+                   "그래서 배너는 Windows 설정 앱에서 직접 한 번 끄고, 알림이 오면 창 가림이 「" + app + " 새 알림」 이라고만 알려 드립니다. " +
+                   "PC 마다 한 번이면 되고, 창 가림을 다시 설치해도 그대로입니다.\r\n\r\n" +
+                   "1. 아래 「Windows 설정 앱에서 알림 화면 열기」 를 누릅니다. (창 가림 메뉴가 아니라 Windows 설정 앱입니다)\r\n" +
+                   "2. 「앱 및 다른 보낸 사람의 알림」 목록에서 「" + app + "」 이름을 누릅니다. 이름 오른쪽의 켬/끔 스위치는 누르지 않습니다.\r\n" +
+                   "3. 제목이 「시스템 > 알림 > " + app + "」 인 화면에서, 왼쪽 그림 아래 체크 상자 「알림 배너 표시」 의 체크를 풉니다. " +
+                   "맨 위 「알림」 스위치와 오른쪽 「알림 센터에서 알림 표시」 는 그대로 둡니다.\r\n" +
+                   "4. 이 창 맨 위 상태가 초록색 「꺼짐」 으로 바뀌면 끝입니다.\r\n\r\n" +
                    "알림 내용은 Windows 알림 센터에 그대로 남습니다. " + app + " 를 쓰고 있을 때는 따로 알리지 않습니다."
         });
         var row = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false, Margin = new Padding(0, 14, 0, 0) };
-        var open = new Button { Text = "Windows 알림 설정 열기", AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
+        var open = new Button { Text = "Windows 설정 앱에서 알림 화면 열기", AutoSize = true, Margin = new Padding(0, 0, 8, 0), Padding = new Padding(8, 2, 8, 2) };
         // 설정 앱을 여는 동안 창 가림 본체가 기다리지 않게 따로 연다. 본체가 멈추면 가림이 따라가지 못한다.
         open.Click += (s, e) => ThreadPool.QueueUserWorkItem(_ => {
             try { Process.Start("ms-settings:notifications"); }
@@ -970,8 +989,9 @@ public static class VeilApp {
         foreach (var name in selected.OrderBy(n => Shown(n), StringComparer.CurrentCultureIgnoreCase)) {
             if (!NotifyWanted(name) || !BannerOn(name)) continue;
             string app = Shown(name);
-            var warn = new ToolStripMenuItem(app + " 알림 배너가 켜져 있어 내용이 보입니다 · 눌러서 끄는 방법 보기") { ForeColor = Color.Firebrick };
-            warn.Click += (s, e) => ShowGuide(app);
+            string nameForGuide = name;
+            var warn = new ToolStripMenuItem(app + " 알림 배너가 켜져 있어 내용이 보입니다 · Windows 설정에서 끄는 방법 보기") { ForeColor = Color.Firebrick };
+            warn.Click += (s, e) => ShowGuide(nameForGuide);
             menu.Items.Insert(at++, warn);
         }
 
@@ -1006,15 +1026,15 @@ public static class VeilApp {
                 parent.DropDownItems.Add(new ToolStripMenuItem("알림") { Enabled = false });
                 string nameForNotify = name, app = Shown(name);
                 if (NotifyKeysOf(name).Count > 0) {
-                    var notify = new ToolStripMenuItem("알림이 오면 「" + app + " 새 알림」 으로만 알려주기") { Checked = !notifyOff.Contains(name) };
+                    var notify = new ToolStripMenuItem("알림이 오면 「" + app + " 새 알림」 표시하기 (" + app + " 배너와는 별개)") { Checked = !notifyOff.Contains(name) };
                     notify.Click += (s, e) => ToggleNotify(nameForNotify);
                     parent.DropDownItems.Add(notify);
                     if (BannerOn(name)) {
-                        var banner = new ToolStripMenuItem("알림 배너가 켜져 있어 내용이 보입니다 · 눌러서 끄는 방법 보기") { ForeColor = Color.Firebrick };
-                        banner.Click += (s, e) => ShowGuide(app);
+                        var banner = new ToolStripMenuItem("Windows 알림 배너가 켜져 있어 내용이 보입니다 · Windows 설정에서 끄는 방법 보기") { ForeColor = Color.Firebrick };
+                        banner.Click += (s, e) => ShowGuide(nameForNotify);
                         parent.DropDownItems.Add(banner);
                     } else {
-                        parent.DropDownItems.Add(new ToolStripMenuItem("알림 배너가 꺼져 있어 내용이 보이지 않습니다") { Enabled = false });
+                        parent.DropDownItems.Add(new ToolStripMenuItem("Windows 알림 배너가 꺼져 있어 내용이 보이지 않습니다") { Enabled = false });
                     }
                 } else {
                     parent.DropDownItems.Add(new ToolStripMenuItem("Windows 알림을 보낸 기록이 없습니다") { Enabled = false });
@@ -1665,10 +1685,10 @@ public static class VeilApp {
     }
 
     static NotifyGuideForm guideForm;
-    static void ShowGuide(string app) {
-        Beat("배너 끄는 방법 안내");
+    static void ShowGuide(string program) {
+        Beat("배너 끄는 방법 안내 · " + program);
         if (guideForm != null && !guideForm.IsDisposed) { guideForm.Activate(); return; }
-        guideForm = new NotifyGuideForm(app);
+        guideForm = new NotifyGuideForm(Shown(program), () => BannerOn(program));
         guideForm.Show();
     }
 
