@@ -15,7 +15,9 @@ internal static class Program {
             try {
                 File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss.fff") + "  failed to start: " + ex + Environment.NewLine, Encoding.UTF8);
             } catch (IOException) { }
-            MessageBox.Show("Window Veil could not start. See %APPDATA%\\WindowVeil\\veil.log for details.", "Window Veil", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(L.T("창 가림을 시작하지 못했습니다. 자세한 내용은 %APPDATA%\\WindowVeil\\veil.log 를 보세요.",
+                                "Window Veil could not start. See %APPDATA%\\WindowVeil\\veil.log for details."),
+                            L.T("창 가림", "Window Veil"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 }

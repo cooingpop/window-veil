@@ -1,100 +1,106 @@
 # Window Veil
 
-**Cover selected Windows app windows when you are not using them.** Window Veil lives in the system tray and places a cover over a selected window when another window is active. Return to the app to uncover it, or hold **Ctrl** while hovering over the cover for a quick peek.
+[한국어 안내](README.ko.md)
 
-Window Veil is a visual privacy aid for people nearby. It does not lock an app, encrypt its contents, or stop screenshots and screen sharing.
+Window Veil is a small Windows tray app that covers the windows of apps you choose whenever you are not using them. People walking past your desk see a cover instead of your chats, mail, or documents. Click the window, or switch to it, and the cover goes away.
 
-## What it does
+It is a visual privacy aid for people nearby. It does not lock apps, encrypt anything, or stop screenshots and screen sharing.
 
-- Follows selected app windows, including related windows, without taking keyboard focus.
-- Keeps the original app in the taskbar and Alt+Tab.
-- Offers blur, blank terminal, simulated terminal logs, blank Notepad, blank spreadsheet, or your own image as a cover.
-- Lets you leave selected parts of a window visible, such as a message input box.
-- Supports monitors with different display scaling settings.
-- Tells you which covered app received a notification. When a covered app sends a Windows notification, such as Discord, Window Veil shows only "<app> 새 알림" ("new notification") with a count. Windows draws notification banners above every window, so they cannot be covered; the tray menu warns you while an app's banner is still on and shows how to turn it off once in Windows Settings.
+## Features
 
-The built-in terminal, Notepad, and spreadsheet covers contain sample content. You can demonstrate the app with those covers without showing your own conversations or documents.
+- **Covers the apps you choose** while another window is active. Covers follow the window when it moves or resizes, and windows in front of it are never covered.
+- **Peek** at a covered window by hovering over it and holding **Ctrl**.
+- **Cover styles**: blur, a blank terminal, a terminal with scrolling logs, blank Notepad, a blank spreadsheet, or your own image. The built-in styles contain sample content only, so they make it hard to tell that anything is covered.
+- **Visible areas** keep part of a window uncovered, such as a message input box.
+- **Notification signal** shows only "*app*: new notification" when a covered app sends a Windows notification, so you know something arrived without showing its content.
+- Works across monitors with different display scaling.
+- Shows its menus in Korean or English, following your Windows display language.
 
-## Download and run
+## Install
 
-Download from [Releases](https://github.com/cooingpop/window-veil/releases). Windows 11 and its included .NET Framework are the intended environment. No separate PowerShell window or compile step is needed for release builds.
+Download the latest version from [Releases](https://github.com/cooingpop/window-veil/releases). It is made for Windows 11 and needs nothing else installed.
 
-| Download | Best for | How to start |
+| Download | Use it when | How to start |
 |---|---|---|
-| `WindowVeil-Setup-…-win-x64.exe` | A normal per-user installation | Run the installer, then launch **Window Veil** from the Start menu. |
-| `WindowVeil-…-win-x64.zip` | Running without an installer | Extract the ZIP and run `WindowVeil.exe`. |
+| `WindowVeil-Setup-…-win-x64.exe` | You want a normal installation | Run the installer, then open **Window Veil** from the Start menu. |
+| `WindowVeil-…-win-x64.zip` | You do not want to install anything | Extract the ZIP and run `WindowVeil.exe`. |
 
-Both editions save settings under `%APPDATA%\WindowVeil`; moving the ZIP does **not** move your settings. Only one instance runs at a time. Quit from the tray menu.
+Window Veil lives in the system tray as a shield icon. If you do not see it, click **^** at the right end of the taskbar.
 
-## Use
+## Getting started
 
-1. Open the shield icon in the system tray.
-2. Choose **가릴 프로그램 고르기** (“Choose apps to cover”) and select the programs you want to cover.
-3. Under **가린 창 꾸미기** (“Customize covered windows”), choose a cover style or set an area that should remain visible.
-4. Hover over a covered window and hold **Ctrl** to peek. Activate the original window to remove its cover.
-5. Notification signals are on by default for covered apps that send Windows notifications. When one arrives, Window Veil shows "<app> 새 알림" at the bottom right, counts repeats, and switches to the app when clicked. It stays quiet while you are using that app. Turn it off per app under **가린 창 꾸미기** → the app → **알림**.
-6. To hide notification content, look at the top of the tray menu. If it says **<app> 알림 배너가 켜져 있어 내용이 보입니다** ("<app>'s banner is on, so its content is visible"), click it and follow the guide to turn off **Show notification banners** for that app in the Windows Settings app. Window Veil cannot change this setting for you; Windows ignores programs that write it directly. The guide shows the current state and turns green as soon as the banner is off. Do this once per app on each PC; Windows keeps the setting even if you reinstall Window Veil. The notifications stay in the Windows notification center. Apps that draw their own pop-up windows, such as KakaoTalk, are covered like any other window of that app.
+1. Click the shield icon.
+2. Under **Choose apps to cover**, check the apps you want to cover. The menu stays open, so you can check several in a row.
+3. Under **Customize covered windows**, pick an app to change its cover style, adjust visible areas, or set its notifications.
+4. To use a covered app, click its window or switch to it. To glance at it without switching, hover over it and hold **Ctrl**.
 
-The interface is currently in Korean. The tray menu also contains a help view (**사용법 보기**), a temporary pause option, and Quit.
+The menu also has **Help**, **Pause all covers**, and **Quit Window Veil**.
+
+## Notifications
+
+Windows draws notification banners above every other window, so Window Veil cannot cover them. It also cannot turn them off for you: Windows only accepts that change from its own Settings app.
+
+What Window Veil does instead:
+
+- When a covered app sends a Windows notification, it shows **"*app*: new notification"** with a count at the bottom right. Click it to open the app. Nothing is shown while you are using that app.
+- If a covered app's banners are still on, the top of the tray menu says so in red. Click that line for a short guide to turn the banners off in Windows Settings. The guide shows the current state and turns green once they are off.
+
+You only need to turn the banners off once per app on each PC. Windows keeps this setting even if you reinstall Window Veil, and your notifications stay in the Windows notification center.
+
+Apps that draw their own pop-up windows instead of using Windows notifications, such as KakaoTalk, do not need this. Their pop-ups are covered like any other window of that app.
+
+## Language
+
+Window Veil shows Korean when your Windows display language is Korean, and English otherwise. To choose a language yourself, set the environment variable `WINDOWVEIL_LANG` to `en` or `ko` and restart Window Veil:
+
+```powershell
+setx WINDOWVEIL_LANG en
+```
+
+## Privacy
+
+Window Veil runs entirely on your PC and sends nothing anywhere. It never saves window titles or screen contents. It keeps its settings in `%APPDATA%\WindowVeil`:
+
+| File | What it holds |
+|---|---|
+| `targets.txt` | The apps you chose, their cover styles (with the image path if you chose an image), and which apps have the notification signal turned off |
+| `areas.txt` | Positions of visible areas |
+| `veil.log` | A diagnostic log. It can contain app names, so check it before attaching it to an issue. |
+
+For the notification signal, Window Veil reads only two values that Windows keeps for each app under `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings`: the time of its latest notification and whether its banners are off. It never reads notification text and never changes Windows settings.
+
+Uninstalling does not delete these files. To remove them, quit Window Veil and delete the `%APPDATA%\WindowVeil` folder.
+
+## Good to know
+
+- **The cover hides the window from you too.** Window Veil is not a privacy screen filter. To see a covered window, peek with **Ctrl** or switch to it.
+- **Anyone can read what is inside a visible area**, such as text you have typed into an input box.
+- **Screen sharing shows the cover**, so people in a meeting see it too.
+- **It is not a lock.** Anyone who uses your keyboard and mouse can still open the app.
+- **The Windows notification center still has the full notifications.**
+
+Tested on Windows 11 with KakaoTalk, Discord, and Whale, including a monitor at a different display scale. Not tested yet: Windows 10, Microsoft Store apps, always-on-top windows, and dragging a window between monitors with different scaling.
 
 ## Build from source
 
-On Windows with the .NET Framework C# compiler, run:
+With the C# compiler that comes with Windows (.NET Framework 4.x):
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-This produces `dist\WindowVeil.exe`. The installer is built with [Inno Setup 6](https://jrsoftware.org/isinfo.php):
+This creates `dist\WindowVeil.exe`. To build the installer, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and run:
 
 ```powershell
-$version = (Get-Content VERSION).Trim()
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" installer\WindowVeil.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$((Get-Content VERSION).Trim())" installer\WindowVeil.iss
 ```
 
-For source-only development, `run-hidden.vbs` still starts `run.ps1`, which compiles `src\Veil.cs` in PowerShell at each launch. Release builds use the compiled executable.
-
-## Versioning
-
-The current version is in [`VERSION`](VERSION). Releases follow `MAJOR.MINOR.PATCH`:
-
-- **MAJOR**: a change that breaks existing behavior or compatibility.
-- **MINOR**: a new feature that keeps existing behavior compatible.
-- **PATCH**: a compatible bug fix or small correction.
-
-Update `VERSION` in a pull request, then tag that commit as `vMAJOR.MINOR.PATCH`. The release workflow checks that the tag matches `VERSION`, embeds the version in `WindowVeil.exe`, and uses it for the installer and ZIP names. Published tags and release files are kept as historical versions.
-
-## Local data and privacy
-
-Window Veil runs locally. It stores selected executable names, cover preferences, optional image paths, content-free notification preferences, visible-area geometry, and a diagnostic log in `%APPDATA%\WindowVeil`. It does not save window titles or window contents. For the notification signal it reads only the time Windows records for an app's latest notification (`LastNotificationAddedTime`) and whether that app's banner is turned off (`ShowBanner`), both under `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings`. It never reads notification text and never changes Windows notification settings. If you choose a custom image, the path to that file is stored. The log may contain app names and diagnostic details, so inspect it before sharing it in an issue.
-
-| File | Purpose |
-|---|---|
-| `targets.txt` | Selected app executable names, cover styles, and which apps have the notification signal turned off |
-| `areas.txt` | Visible-area positions and window-type markers |
-| `veil.log` | Diagnostic events |
-
-Uninstalling the app does not remove this user data. To remove your preferences too, quit Window Veil and delete `%APPDATA%\WindowVeil`.
-
-## Current limitations
-
-- The cover also hides the window from **you** until you activate it or peek. A visible area is visible to everyone looking at the screen.
-- Screen sharing captures what is on your screen, including the cover. Window Veil is not protection against someone controlling your PC or accessing the original app directly.
-- Manually checked so far: KakaoTalk PC, Discord, and Whale on Windows 11, including a 125% system scale and a 150% monitor.
-- Windows notification banners cannot be covered; use the content-free notification option and turn the app's banners off in Windows Settings. Anyone who opens the Windows notification center can still read the notifications there.
-- The content-free notification signal works only for apps that send Windows notifications. Apps that draw their own pop-up windows are covered like any other window of that app.
-- Windows 10, Microsoft Store apps, always-on-top windows, and dragging a window between monitors with different scaling have not yet been verified. The notification signal was checked with test notifications sent under Discord's notification identity; it has not yet been checked with a real Discord message while Discord's banner is turned off.
+For quick experiments without building, `run-hidden.vbs` starts `run.ps1`, which compiles `src\Veil.cs` in PowerShell each time it starts.
 
 ## Contributing
 
-Please [open an issue](https://github.com/cooingpop/window-veil/issues/new/choose) for a bug or an idea. Include your Windows version, target app, monitor scaling, and cover style when reporting display problems. Remove personal text, names, email addresses, and file paths from screenshots and logs before posting. Pull requests are welcome; discuss larger changes in an issue first.
+Please [open an issue](https://github.com/cooingpop/window-veil/issues/new/choose) for bugs and ideas. For display problems, include your Windows version, the app you covered, your monitor scaling, and the cover style. Remove personal text, names, email addresses, and file paths from screenshots and logs first. Pull requests are welcome; for larger changes, please open an issue first.
 
 ## License
 
-[MIT](LICENSE).
-
----
-
-### 한국어 안내
-
-Window Veil은 다른 창을 사용하는 동안 선택한 프로그램 창을 가려 주는 Windows 트레이 앱입니다. [Releases](https://github.com/cooingpop/window-veil/releases)에서 설치 파일을 받거나 ZIP을 풀고 `WindowVeil.exe`를 실행하세요. 방패 아이콘의 **가릴 프로그램 고르기**에서 대상을 고르고, **가린 창 꾸미기**에서 가림 모양과 보이게 둘 영역을 설정할 수 있습니다. 가림 위에 마우스를 올린 채 **Ctrl**을 누르면 잠깐 볼 수 있습니다. 가리고 있는 앱에 Windows 알림이 오면 "Discord 새 알림"처럼 앱 이름과 건수만 알려 줍니다. 알림 배너는 모든 창 위에 그려져 가릴 수 없으므로, 메뉴 맨 위에 "알림 배너가 켜져 있어 내용이 보입니다"가 보이면 눌러서 안내대로 Windows 설정에서 그 앱의 배너를 한 번 끄세요. PC마다 앱별로 한 번이면 됩니다. 설정은 설치형과 ZIP형 모두 `%APPDATA%\WindowVeil`에 저장됩니다.
+[MIT](LICENSE)
