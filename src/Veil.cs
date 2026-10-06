@@ -796,22 +796,171 @@ class NotifyGuideForm : Form {
                 "Notifications stay in the Windows notification center. Window Veil stays quiet while you are using " + app + ".")
         });
         var row = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false, Margin = new Padding(0, 14, 0, 0) };
-        var open = new Button { Text = L.T("Windows 설정 앱에서 알림 화면 열기", "Open notifications in Windows Settings"), AutoSize = true, Margin = new Padding(0, 0, 8, 0), Padding = new Padding(8, 2, 8, 2) };
-        // 설정 앱을 여는 동안 창 가림 본체가 기다리지 않게 따로 연다. 본체가 멈추면 가림이 따라가지 못한다.
-        open.Click += (s, e) => ThreadPool.QueueUserWorkItem(_ => {
-            try { Process.Start("ms-settings:notifications"); }
-            catch (System.ComponentModel.Win32Exception) {
-                if (!IsDisposed) BeginInvoke((Action)(() =>
-                    MessageBox.Show(this, L.T("설정 화면을 열지 못했습니다. 시작 → 설정 → 시스템 → 알림 으로 가 주세요.",
-                                              "Could not open Settings. Go to Start > Settings > System > Notifications."), Text)));
-            }
-        });
+        var open = SettingsButton(this);
         var close = new Button { Text = L.T("닫기", "Close"), AutoSize = true };
         close.Click += (s, e) => Close();
         row.Controls.Add(open); row.Controls.Add(close);
         flow.Controls.Add(row);
         Controls.Add(flow);
         AcceptButton = open; CancelButton = close;
+    }
+
+    // 「Windows 설정 앱에서 알림 화면 열기」 버튼. 알림이 화면에 안 뜬다는 안내 창도 같이 쓴다.
+    public static Button SettingsButton(Form owner) {
+        var open = new Button { Text = L.T("Windows 설정 앱에서 알림 화면 열기", "Open notifications in Windows Settings"), AutoSize = true, Margin = new Padding(0, 0, 8, 0), Padding = new Padding(8, 2, 8, 2) };
+        // 설정 앱을 여는 동안 창 가림 본체가 기다리지 않게 따로 연다. 본체가 멈추면 가림이 따라가지 못한다.
+        open.Click += (s, e) => ThreadPool.QueueUserWorkItem(_ => {
+            try { Process.Start("ms-settings:notifications"); }
+            catch (System.ComponentModel.Win32Exception) {
+                if (!owner.IsDisposed) owner.BeginInvoke((Action)(() =>
+                    MessageBox.Show(owner, L.T("설정 화면을 열지 못했습니다. 시작 → 설정 → 시스템 → 알림 으로 가 주세요.",
+                                               "Could not open Settings. Go to Start > Settings > System > Notifications."), owner.Text)));
+            }
+        });
+        return open;
+    }
+}
+
+// 창 가림에서 알림 신호를 끄거나 그 앱을 그만 가렸는데, Windows 설정에서 그 앱 배너는 꺼 둔 상태일 때 띄운다.
+// 그러면 그 앱 알림은 화면에 아무것도 뜨지 않는다. 사용자는 배너를 꺼 둔 걸 잊었을 수 있어서 바로 알린다.
+class NotifySilentForm : Form {
+    // 지금 상태. 0 = 화면에 안 뜸, 1 = 「새 알림」 으로 뜸, 2 = Windows 배너로 뜸
+    public const int Silent = 0, Signal = 1, Banner = 2;
+    readonly System.Windows.Forms.Timer watch = new System.Windows.Forms.Timer { Interval = 1000 };
+
+    public NotifySilentForm(string app, Func<int> state, string backLabel, string backHow, Action back) {
+        Text = L.T(app + " 알림이 화면에 뜨지 않습니다", app + " notifications will not appear on screen");
+        Icon = SystemIcons.Shield;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false; MinimizeBox = false;
+        StartPosition = FormStartPosition.CenterScreen;
+        AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        Font = new Font(L.FontName, 10);
+
+        int width;
+        using (var g = CreateGraphics()) width = (int)(460 * g.DpiX / 96f);
+        var flow = new FlowLayoutPanel {
+            FlowDirection = FlowDirection.TopDown, WrapContents = false,
+            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(18, 12, 18, 16)
+        };
+        var status = new Label { AutoSize = true, MaximumSize = new Size(width, 0), Margin = new Padding(0, 0, 0, 12), Font = new Font(Font, FontStyle.Bold) };
+        var why = new Label {
+            AutoSize = true, MaximumSize = new Size(width, 0), Margin = new Padding(0, 0, 0, 10),
+            Font = new Font(Font, FontStyle.Bold), ForeColor = Color.FromArgb(0, 84, 166),
+            Text = L.T("Windows 설정 앱에서 " + app + " 알림 배너를 꺼 두었기 때문입니다. 창 가림에서 알림을 끈다고 Windows 배너가 저절로 다시 켜지지는 않습니다.",
+                       "This is because " + app + " banners are off in the Windows Settings app. Turning notifications off in Window Veil does not turn those banners back on.")
+        };
+        var how = new Label {
+            AutoSize = true, MaximumSize = new Size(width, 0),
+            Text = L.T(
+                "알림을 다시 보려면 둘 중 하나를 고르세요.\r\n\r\n" +
+                "• 내용 없이 「" + app + " 새 알림」 으로 받기: " + backHow + "\r\n" +
+                "• 내용까지 Windows 배너로 받기: 아래 「Windows 설정 앱에서 알림 화면 열기」 를 누르고, 「" + app + "」 이름을 누른 뒤 「알림 배너 표시」 를 다시 체크합니다.\r\n\r\n" +
+                "알림 없이 지내도 괜찮으면 이 창을 닫으면 됩니다. 알림은 Windows 알림 센터에 남습니다. 작업 표시줄 오른쪽 끝의 날짜와 시각을 누르면 열립니다.",
+                "To see them again, choose one:\r\n\r\n" +
+                "• Get \"" + app + ": new notification\" without the content: " + backHow + "\r\n" +
+                "• Get Windows banners with the content: click \"Open notifications in Windows Settings\" below, click the name \"" + app + "\", and check \"Show notification banners\" again.\r\n\r\n" +
+                "If you are fine without them, just close this window. Notifications stay in the Windows notification center, which opens when you click the date and time at the right end of the taskbar.")
+        };
+        var backButton = new Button { Text = backLabel, AutoSize = true, Margin = new Padding(0, 0, 8, 0), Padding = new Padding(8, 2, 8, 2) };
+        var open = NotifyGuideForm.SettingsButton(this);
+        Action refresh = () => {
+            int now = state();
+            status.Text = now == Silent
+                ? L.T("지금 " + app + " 알림: 화면에 뜨지 않음 · Windows 알림 센터에만 쌓입니다.",
+                      "Now: " + app + " notifications do not appear on screen. They only go to the Windows notification center.")
+                : now == Signal
+                ? L.T("✓ 지금 " + app + " 알림: 「" + app + " 새 알림」 으로 알려 드립니다. 이 창을 닫아도 됩니다.",
+                      "✓ Now: you get \"" + app + ": new notification\". You can close this window.")
+                : L.T("✓ 지금 " + app + " 알림: Windows 배너로 뜹니다. 내용도 보입니다. 이 창을 닫아도 됩니다.",
+                      "✓ Now: " + app + " notifications appear as Windows banners, with their content. You can close this window.");
+            status.ForeColor = now == Silent ? Color.Firebrick : Color.ForestGreen;
+            // 다시 받게 되면 이유와 방법은 필요 없으니 상태 줄과 닫기만 남긴다. 회색으로 꺼진 버튼은 고장처럼 보여서 아예 숨긴다.
+            why.Visible = how.Visible = backButton.Visible = open.Visible = now == Silent;
+        };
+        refresh();
+        watch.Tick += (s, e) => refresh();
+        watch.Start();
+        FormClosed += (s, e) => { watch.Stop(); watch.Dispose(); };
+        flow.Controls.Add(status);
+        flow.Controls.Add(why);
+        flow.Controls.Add(how);
+        var row = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false, Margin = new Padding(0, 14, 0, 0) };
+        backButton.Click += (s, e) => { back(); refresh(); };
+        var close = new Button { Text = L.T("닫기", "Close"), AutoSize = true };
+        close.Click += (s, e) => Close();
+        row.Controls.Add(backButton); row.Controls.Add(open); row.Controls.Add(close);
+        flow.Controls.Add(row);
+        Controls.Add(flow);
+        AcceptButton = close; CancelButton = close;
+    }
+}
+
+// 「창 가림 끝내기」 를 눌렀는데, 배너를 꺼 두고 창 가림의 「새 알림」 으로만 알림을 받던 앱이 있을 때 띄운다.
+// 끝내면 그 앱들 알림이 화면에 하나도 안 뜨니, 끝내기 전에 한 번 더 묻는다.
+class QuitWarnForm : Form {
+    readonly System.Windows.Forms.Timer watch = new System.Windows.Forms.Timer { Interval = 1000 };
+
+    public QuitWarnForm(Func<List<string>> silentApps, Action quit) {
+        Text = L.T("창 가림 끝내기", "Quit Window Veil");
+        Icon = SystemIcons.Shield;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false; MinimizeBox = false;
+        StartPosition = FormStartPosition.CenterScreen;
+        AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        Font = new Font(L.FontName, 10);
+
+        int width;
+        using (var g = CreateGraphics()) width = (int)(460 * g.DpiX / 96f);
+        var flow = new FlowLayoutPanel {
+            FlowDirection = FlowDirection.TopDown, WrapContents = false,
+            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(18, 12, 18, 16)
+        };
+        var status = new Label { AutoSize = true, MaximumSize = new Size(width, 0), Margin = new Padding(0, 0, 0, 12), Font = new Font(Font, FontStyle.Bold) };
+        var why = new Label {
+            AutoSize = true, MaximumSize = new Size(width, 0), Margin = new Padding(0, 0, 0, 10),
+            Font = new Font(Font, FontStyle.Bold), ForeColor = Color.FromArgb(0, 84, 166),
+            Text = L.T("Windows 설정 앱에서 알림 배너를 꺼 두어서, 지금은 창 가림의 「새 알림」 으로만 알려 드리고 있기 때문입니다.",
+                       "Their banners are off in the Windows Settings app, so right now you only get Window Veil's \"new notification\" signal.")
+        };
+        var how = new Label {
+            AutoSize = true, MaximumSize = new Size(width, 0),
+            Text = L.T(
+                "알림은 Windows 알림 센터에 남습니다. 작업 표시줄 오른쪽 끝의 날짜와 시각을 누르면 열립니다.\r\n\r\n" +
+                "끝낸 뒤에도 알림을 화면에서 보려면 아래 「Windows 설정 앱에서 알림 화면 열기」 를 누르고, 앱 이름을 누른 뒤 「알림 배너 표시」 를 다시 체크하세요. 그러면 내용도 보입니다. " +
+                "창 가림을 다시 켜면 「새 알림」 도 다시 나옵니다.",
+                "Notifications stay in the Windows notification center, which opens when you click the date and time at the right end of the taskbar.\r\n\r\n" +
+                "To keep seeing them on screen after quitting, click \"Open notifications in Windows Settings\" below, click the app name, and check \"Show notification banners\" again. Their content will then be visible. " +
+                "When you start Window Veil again, the \"new notification\" signal comes back.")
+        };
+        var stay = new Button { Text = L.T("끝내지 않기", "Don't quit"), AutoSize = true, Margin = new Padding(0, 0, 8, 0), Padding = new Padding(8, 2, 8, 2) };
+        var open = NotifyGuideForm.SettingsButton(this);
+        var go = new Button { Text = L.T("그래도 끝내기", "Quit anyway"), AutoSize = true, Padding = new Padding(8, 2, 8, 2) };
+        Action refresh = () => {
+            var apps = silentApps();
+            string list = string.Join(", ", apps);
+            status.Text = apps.Count > 0
+                ? L.T("창 가림을 끝내면 " + list + " 알림이 화면에 뜨지 않습니다.", "If you quit Window Veil, " + list + " notifications will not appear on screen.")
+                : L.T("✓ 이제 끝내도 알림이 화면에 뜹니다.", "✓ Notifications will now appear on screen after you quit.");
+            status.ForeColor = apps.Count > 0 ? Color.Firebrick : Color.ForestGreen;
+            why.Visible = how.Visible = open.Visible = apps.Count > 0;
+            go.Text = apps.Count > 0 ? L.T("그래도 끝내기", "Quit anyway") : L.T("끝내기", "Quit");
+        };
+        refresh();
+        watch.Tick += (s, e) => refresh();
+        watch.Start();
+        FormClosed += (s, e) => { watch.Stop(); watch.Dispose(); };
+        flow.Controls.Add(status);
+        flow.Controls.Add(why);
+        flow.Controls.Add(how);
+        var row = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false, Margin = new Padding(0, 14, 0, 0) };
+        stay.Click += (s, e) => Close();
+        go.Click += (s, e) => { Close(); quit(); };
+        row.Controls.Add(stay); row.Controls.Add(open); row.Controls.Add(go);
+        flow.Controls.Add(row);
+        Controls.Add(flow);
+        // 엔터나 Esc 를 실수로 눌러도 끝나지 않게, 둘 다 「끝내지 않기」 로 둔다.
+        AcceptButton = stay; CancelButton = stay;
     }
 }
 
@@ -834,8 +983,10 @@ class HelpForm : Form {
                 L.T("같은 곳에서 「보이게 둘 영역 조절하기」 를 누르고 그 프로그램 창을 클릭하면, 창 위에 파란 사각형이 뜹니다. 가운데를 끌면 옮겨지고 가장자리를 끌면 크기가 바뀝니다. 입력칸 같은 구성 요소 가까이 놓으면 딱 맞게 붙고, 그 뒤로는 그 구성 요소를 따라갑니다. 저장하면 같은 종류의 창에 모두 적용됩니다. 영역 안의 내용은 지나가는 사람에게도 보입니다.",
                     "In the same place, choose \"Adjust visible areas\" and click that app's window. A blue rectangle appears on it. Drag the middle to move it and an edge to resize it. Place it near a control such as an input box and it snaps to that control, then follows it. Saving applies to every window of the same kind. Anyone nearby can see what is inside the area.") },
         new[] { L.T("어떤 앱에서 알림이 왔는지 보기", "See which app got a notification"),
-                L.T("가리고 있는 앱이 Windows 알림을 보내면, 오른쪽 아래에 「Discord 새 알림」 처럼 앱 이름과 건수만 알려 드립니다. 누르면 그 앱으로 넘어가고, 그 앱을 쓰고 있을 때는 알리지 않습니다. 앱마다 「가린 창 꾸미기」 → 앱 → 「알림」 에서 끌 수 있습니다.",
-                    "When a covered app sends a Windows notification, the bottom-right corner shows only the app name and a count, such as \"Discord: new notification\". Click it to open the app. Nothing is shown while you are using that app. Turn it off per app under \"Customize covered windows\" > app > \"Notifications\".") },
+                L.T("가리고 있는 앱이 Windows 알림을 보내면, 오른쪽 아래에 「Discord 새 알림」 처럼 앱 이름과 건수만 알려 드립니다. 누르면 그 앱으로 넘어가고, 그 앱을 쓰고 있을 때는 알리지 않습니다. 앱마다 「가린 창 꾸미기」 → 앱 → 「알림」 에서 끌 수 있습니다. " +
+                    "다만 Windows 설정에서 그 앱 배너를 꺼 두었다면, 이 표시를 끄거나 그 앱을 그만 가리는 순간 그 앱 알림은 화면에 하나도 뜨지 않습니다. 그때는 창 가림이 바로 알려 드리고 다시 받는 방법을 보여 줍니다. 창 가림을 끝낼 때도 마찬가지라서, 끝내기 전에 한 번 더 묻습니다.",
+                    "When a covered app sends a Windows notification, the bottom-right corner shows only the app name and a count, such as \"Discord: new notification\". Click it to open the app. Nothing is shown while you are using that app. Turn it off per app under \"Customize covered windows\" > app > \"Notifications\". " +
+                    "If that app's banners are off in Windows Settings, turning this off or no longer covering the app means its notifications stop appearing on screen at all. Window Veil tells you right away and shows how to get them back. Quitting Window Veil has the same effect, so it asks once more before quitting.") },
         new[] { L.T("알림 내용 가리기", "Hide notification content"),
                 L.T("Windows 알림 배너는 모든 창보다 위에 그려져서 창 가림이 덮을 수 없고, 대신 끌 수도 없습니다. 그래서 이 설정만은 Windows 설정 앱에서 앱마다 한 번 해야 합니다. 가릴 프로그램을 고를 때 그 앱 배너가 켜져 있으면 방법 안내가 저절로 뜹니다. 나중에는 메뉴 맨 위나 「가린 창 꾸미기」 → 앱 → 「알림 내용 가리기」 에서 상태를 보고 안내를 다시 열 수 있습니다. 카카오톡처럼 앱이 직접 띄우는 알림 창은 이 설정 없이도 다른 창처럼 가려집니다.",
                     "Windows notification banners are drawn above every window, so Window Veil cannot cover them or turn them off for you. This one step has to be done once per app in the Windows Settings app. When you choose an app to cover and its banners are on, the guide opens by itself. Later you can see the state and reopen the guide at the top of the menu or under \"Customize covered windows\" > app > \"Hide notification content\". Pop-up windows that an app draws itself, such as KakaoTalk's, are covered like its other windows without this step.") },
@@ -1131,6 +1282,13 @@ public static class VeilApp {
                                                            "Show \"" + app + ": new notification\" when one arrives")) { Checked = !notifyOff.Contains(name) };
                     notify.Click += (s, e) => ToggleNotify(nameForNotify);
                     parent.DropDownItems.Add(notify);
+                    // 「새 알림」 을 껐고 배너도 꺼져 있으면 이 앱 알림은 화면에 하나도 안 뜬다. 끈 걸 잊어도 여기서 보이게 둔다.
+                    if (notifyOff.Contains(name) && !BannerOn(name)) {
+                        var silent = new ToolStripMenuItem(L.T("지금 " + app + " 알림은 화면에 뜨지 않음 · 누르면 다시 받는 방법 안내",
+                                                               app + " notifications do not appear on screen now · Click for how to get them back")) { ForeColor = Color.Firebrick };
+                        silent.Click += (s, e) => ShowSilent(nameForNotify);
+                        parent.DropDownItems.Add(silent);
+                    }
                 } else {
                     parent.DropDownItems.Add(Info(L.T("Windows 알림을 보낸 기록이 없습니다.", "This app has not sent Windows notifications."), SystemColors.ControlText));
                     parent.DropDownItems.Add(Info(L.T("이 프로그램이 직접 띄우는 알림 창은 다른 창처럼 가려집니다.", "Pop-up windows that this app draws itself are covered like its other windows."), SystemColors.ControlText));
@@ -1151,25 +1309,37 @@ public static class VeilApp {
         };
         menu.Items.Add(pause);
         var quit = new ToolStripMenuItem(L.T("창 가림 끝내기", "Quit Window Veil"));
-        quit.Click += (s, e) => Quit(L.T("메뉴에서 끝냄", "quit from menu"));
+        quit.Click += (s, e) => AskQuit();
         menu.Items.Add(quit);
     }
 
     static string Shown(string name) { string d; return displayNames.TryGetValue(name, out d) ? d : name; }
 
     static void Toggle(ToolStripMenuItem item) {
-        Beat(L.T("가릴 프로그램 체크", "toggling an app"));
         string name = (string)item.Tag;
-        if (selected.Contains(name)) selected.Remove(name); else selected.Add(name);
+        SetCovered(name, !selected.Contains(name));
         item.Checked = selected.Contains(name);
         item.Font = item.Checked ? boldMenuFont : menu.Font;
+    }
+
+    static void SetCovered(string name, bool on) {
+        Beat(L.T("가릴 프로그램 체크", "toggling an app"));
+        bool wasSignaling = SignalShows(name);
+        if (on) {
+            selected.Add(name);
+            // 가리지 않던 동안 온 알림을 다시 가리자마자 한꺼번에 알리지 않게, 지금 시각부터 센다.
+            foreach (var sub in NotifyKeysOf(name)) lastNotifySeen[sub] = LastNotifyTime(sub);
+        } else selected.Remove(name);
         SaveSelection();
         if (statusItem != null) statusItem.Text = StatusText();
-        Log((item.Checked ? L.T("가림 대상 추가 · ", "Cover on · ") : L.T("가림 대상 해제 · ", "Cover off · ")) + name);
+        Log((on ? L.T("가림 대상 추가 · ", "Cover on · ") : L.T("가림 대상 해제 · ", "Cover off · ")) + name);
         MarkDirty();
+        if (NotifyKeysOf(name).Count == 0) return;
         // 가릴 프로그램으로 고르는 순간, 그 앱의 알림 배너가 켜져 있으면 끄는 방법을 바로 보여 준다.
         // 메뉴를 뒤지지 않아도 「알림 내용은 Windows 설정에서 따로 가려야 한다」 는 걸 처음부터 알 수 있게.
-        if (item.Checked && NotifyKeysOf(name).Count > 0 && BannerOn(name)) ShowGuide(name);
+        if (on && BannerOn(name)) ShowGuide(name);
+        // 그만 가리면 「새 알림」 도 멈춘다. 배너를 꺼 둔 앱이면 이제 알림이 화면에 하나도 뜨지 않으니 바로 알린다.
+        if (!on && wasSignaling && !BannerOn(name)) ShowSilent(name);
     }
 
     static string SkinOf(string name) { string k; return skins.TryGetValue(name, out k) ? k : "blur"; }
@@ -1761,9 +1931,11 @@ public static class VeilApp {
         Win.SetForegroundWindow(target.H);
     }
 
-    static void ToggleNotify(string program) {
+    static void ToggleNotify(string program) { SetNotify(program, notifyOff.Contains(program)); }
+
+    static void SetNotify(string program, bool on) {
         Beat(L.T("알림 신호 켜기·끄기 · ", "toggling notification signal · ") + program);
-        if (notifyOff.Contains(program)) {
+        if (on) {
             notifyOff.Remove(program);
             foreach (var sub in NotifyKeysOf(program)) lastNotifySeen[sub] = LastNotifyTime(sub);
             Log(L.T("알림 신호 켬 · ", "Notification signal on · ") + program);
@@ -1772,11 +1944,36 @@ public static class VeilApp {
             Log(L.T("알림 신호 끔 · ", "Notification signal off · ") + program);
         }
         SaveSelection();
+        if (!selected.Contains(program) || NotifyKeysOf(program).Count == 0) return;
+        // 켤 때 배너도 켜져 있으면 내용이 배너로 그대로 보이니 끄는 방법을, 끌 때 배너가 꺼져 있으면 알림이 사라진다는 걸 알린다.
+        if (on && BannerOn(program)) ShowGuide(program);
+        if (!on && !BannerOn(program)) ShowSilent(program);
     }
 
     // 가리고 있고, 알림 신호를 끄지 않았고, Windows 알림을 보낸 기록이 있는 앱
     static bool NotifyWanted(string program) {
         return !notifyOff.Contains(program) && NotifyKeysOf(program).Count > 0;
+    }
+
+    // 창 가림이 지금 그 앱의 「새 알림」 을 띄우는지. 가리는 앱에만 띄운다.
+    static bool SignalShows(string program) { return selected.Contains(program) && NotifyWanted(program); }
+
+    static NotifySilentForm silentForm;
+    // 그 앱 알림이 화면에 하나도 안 뜨게 됐을 때. 원래대로 돌리는 버튼은 무엇을 꺼서 이렇게 됐는지에 맞춘다.
+    static void ShowSilent(string program) {
+        Beat(L.T("알림이 안 뜬다는 안내 · ", "showing silent-notification notice · ") + program);
+        if (silentForm != null && !silentForm.IsDisposed) silentForm.Close();
+        string app = Shown(program);
+        bool covered = selected.Contains(program);
+        silentForm = new NotifySilentForm(app,
+            () => BannerOn(program) ? NotifySilentForm.Banner : SignalShows(program) ? NotifySilentForm.Signal : NotifySilentForm.Silent,
+            covered ? L.T("새 알림 표시 다시 켜기", "Turn notification signal back on")
+                    : L.T(app + " 다시 가리기", "Cover " + app + " again"),
+            covered ? L.T("아래 「새 알림 표시 다시 켜기」 를 누릅니다.", "click \"Turn notification signal back on\" below.")
+                    : L.T("아래 「" + app + " 다시 가리기」 를 누릅니다. 「새 알림」 은 창 가림이 가리고 있는 앱에만 띄웁니다.",
+                          "click \"Cover " + app + " again\" below. Window Veil shows this only for apps it covers."),
+            () => { if (covered) SetNotify(program, true); else SetCovered(program, true); });
+        silentForm.Show();
     }
 
     // 그 앱의 Windows 알림 배너가 켜져 있는지. 값이 없으면 켜짐(기본값)이다. 읽기만 하고 바꾸지 않는다.
@@ -1797,6 +1994,21 @@ public static class VeilApp {
         if (guideForm != null && !guideForm.IsDisposed) { guideForm.Activate(); return; }
         guideForm = new NotifyGuideForm(Shown(program), () => BannerOn(program));
         guideForm.Show();
+    }
+
+    // 끝내면 알림이 화면에 하나도 안 뜨게 되는 앱. 배너를 꺼 두고 「새 알림」 으로만 받던 앱이다.
+    static List<string> SilentAfterQuit() {
+        return selected.Where(p => SignalShows(p) && !BannerOn(p)).Select(Shown)
+            .OrderBy(n => n, StringComparer.CurrentCultureIgnoreCase).ToList();
+    }
+
+    static QuitWarnForm quitForm;
+    static void AskQuit() {
+        Beat(L.T("끝내기 확인", "confirming quit"));
+        if (SilentAfterQuit().Count == 0) { Quit(L.T("메뉴에서 끝냄", "quit from menu")); return; }
+        if (quitForm != null && !quitForm.IsDisposed) { quitForm.Activate(); return; }
+        quitForm = new QuitWarnForm(SilentAfterQuit, () => Quit(L.T("메뉴에서 끝냄 · 알림이 안 뜬다는 안내를 보고 끝냄", "quit from menu after the notification notice")));
+        quitForm.Show();
     }
 
     static void Quit(string why) {
