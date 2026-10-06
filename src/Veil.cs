@@ -726,7 +726,9 @@ class NotifyGuideForm : Form {
         flow.Controls.Add(new Label {
             AutoSize = true, MaximumSize = new Size(width, 0),
             Text = app + " 알림 배너는 Windows 가 모든 창보다 위에 그려서 창 가림이 덮을 수 없습니다. " +
-                   "그래서 배너는 Windows 설정에서 끄고, 알림이 오면 창 가림이 「" + app + " 새 알림」 이라고만 알려 드립니다.\r\n\r\n" +
+                   "그래서 배너는 Windows 설정에서 한 번 끄고, 알림이 오면 창 가림이 「" + app + " 새 알림」 이라고만 알려 드립니다. " +
+                   "이 설정은 Windows 가 " + app + " 쪽에 저장하므로 PC 마다 한 번이면 되고, 창 가림을 다시 설치해도 그대로입니다. " +
+                   "창 가림은 이 설정을 읽기만 하고 바꾸지 않습니다.\r\n\r\n" +
                    "1. 아래 「Windows 알림 설정 열기」 를 누릅니다.\r\n" +
                    "2. 「앱 및 다른 보낸 사람의 알림」 목록에서 「" + app + "」 을 누릅니다.\r\n" +
                    "3. 왼쪽 그림 아래의 「알림 배너 표시」 체크를 풉니다. 맨 위 「알림」 스위치와 「알림 센터에서 알림 표시」 는 그대로 둡니다.\r\n\r\n" +
@@ -734,10 +736,14 @@ class NotifyGuideForm : Form {
         });
         var row = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false, Margin = new Padding(0, 14, 0, 0) };
         var open = new Button { Text = "Windows 알림 설정 열기", AutoSize = true, Margin = new Padding(0, 0, 8, 0) };
-        open.Click += (s, e) => {
+        // 설정 앱을 여는 동안 창 가림 본체가 기다리지 않게 따로 연다. 본체가 멈추면 가림이 따라가지 못한다.
+        open.Click += (s, e) => ThreadPool.QueueUserWorkItem(_ => {
             try { Process.Start("ms-settings:notifications"); }
-            catch (System.ComponentModel.Win32Exception) { MessageBox.Show("설정 화면을 열지 못했습니다. 시작 → 설정 → 시스템 → 알림 으로 가 주세요.", Text); }
-        };
+            catch (System.ComponentModel.Win32Exception) {
+                if (!IsDisposed) BeginInvoke((Action)(() =>
+                    MessageBox.Show(this, "설정 화면을 열지 못했습니다. 시작 → 설정 → 시스템 → 알림 으로 가 주세요.", Text)));
+            }
+        });
         var close = new Button { Text = "닫기", AutoSize = true };
         close.Click += (s, e) => Close();
         row.Controls.Add(open); row.Controls.Add(close);
@@ -755,7 +761,8 @@ class HelpForm : Form {
         new[] { "그 창으로 돌아가기", "덮인 창을 클릭하면 그 창으로 넘어가고 가림이 걷힙니다. 작업 표시줄이나 Alt+Tab 으로 넘어가도 같습니다." },
         new[] { "가림 모양 바꾸기", "메뉴의 「가린 창 꾸미기」 에서 프로그램을 고르면, 흐림 대신 빈 터미널, 로그가 올라가는 터미널, 빈 메모장, 빈 표, 직접 고른 그림으로 덮을 수 있습니다. 가려져 있다는 것 자체를 알아채기 어렵게 하려는 것입니다. 작업 표시줄과 Alt+Tab 에는 원래 프로그램이 그대로 보입니다." },
         new[] { "일부만 보이게 두기", "같은 곳에서 「보이게 둘 영역 조절하기」 를 누르고 그 프로그램 창을 클릭하면, 창 위에 파란 사각형이 뜹니다. 가운데를 끌면 옮겨지고 가장자리를 끌면 크기가 바뀝니다. 입력칸 같은 구성 요소 가까이 놓으면 딱 맞게 붙고, 그 뒤로는 그 구성 요소를 따라갑니다. 저장하면 같은 종류의 창에 모두 적용됩니다. 영역 안의 내용은 지나가는 사람에게도 보입니다." },
-        new[] { "알림 내용 숨기기", "Discord 처럼 Windows 알림을 쓰는 앱은 알림 배너가 모든 창보다 위에 그려져서 덮을 수 없습니다. 「가린 창 꾸미기」 에서 그 프로그램의 「알림이 오면 내용 없이 알려주기」 를 켜고, 안내에 따라 Windows 설정에서 그 앱의 알림 배너를 끄세요. 그러면 알림이 올 때 「Discord 새 알림」 처럼 내용 없이 알려 드립니다. 누르면 그 프로그램으로 넘어가고, 그 프로그램을 쓰고 있을 때는 알리지 않습니다." },
+        new[] { "어떤 앱에서 알림이 왔는지 보기", "가리고 있는 앱이 Windows 알림을 보내면, 오른쪽 아래에 「Discord 새 알림」 처럼 앱 이름과 건수만 알려 드립니다. 누르면 그 앱으로 넘어가고, 그 앱을 쓰고 있을 때는 알리지 않습니다. 앱마다 「가린 창 꾸미기」 → 앱 → 「알림」 에서 끌 수 있습니다." },
+        new[] { "알림 내용 숨기기", "Windows 알림 배너는 모든 창보다 위에 그려져서 가릴 수 없습니다. 메뉴 맨 위에 「알림 배너가 켜져 있어 내용이 보입니다」 가 보이면 눌러서 안내대로 Windows 설정에서 그 앱의 알림 배너를 한 번 끄세요. 앱마다, PC 마다 한 번이면 됩니다. 카카오톡처럼 앱이 직접 띄우는 알림 창은 다른 창처럼 가려집니다." },
         new[] { "가림 그만두기", "목록에서 체크를 풀면 그 프로그램만 그만 가립니다. 전부 잠깐 멈추려면 「모든 가림 잠시 끄기」, 프로그램을 닫으려면 「창 가림 끝내기」 를 누릅니다." },
         new[] { "저장하는 것", "고른 프로그램 이름, 가림 모양(그림을 골랐다면 그 파일 위치), 알림 신호를 켰는지, 보이게 둘 영역의 위치만 %APPDATA%\\WindowVeil 에 저장합니다. 창 제목이나 화면 내용은 저장하지 않습니다." },
     };
@@ -796,7 +803,8 @@ public static class VeilApp {
 
     // targets.txt 한 줄은 「프로그램 이름」 또는 「프로그램 이름|skin=모양」.
     const string SkinFlag = "skin=";
-    const string NotifyFlag = "notify";
+    // 알림 신호는 기본으로 켜 둔다. 끈 앱만 「nonotify」 로 적는다. 예전 판의 「notify」 는 기본값과 같아 무시한다.
+    const string NoNotifyFlag = "nonotify";
 
     // Windows 가 앱마다 알림 설정과 「마지막 알림 시각」 을 적어 두는 곳. 알림 내용은 여기 없다.
     const string NotifySettingsKey = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings";
@@ -814,10 +822,29 @@ public static class VeilApp {
     static readonly Random rng = new Random();
     static readonly HashSet<string> selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     static readonly Dictionary<string, string> skins = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-    static readonly HashSet<string> notifyOn = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    static readonly HashSet<string> notifyOff = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     static readonly Dictionary<string, long> lastNotifySeen = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
     static readonly Dictionary<string, SignalForm> signals = new Dictionary<string, SignalForm>(StringComparer.OrdinalIgnoreCase);
     static DateTime lastNotifyCheck = DateTime.MinValue;
+
+    // 멈춤 감지. 본체가 지금 하는 일(stage)과 마지막으로 살아 있던 시각을 적어 두면, 감시 작업이 4초 넘게 멈춘 걸 보고 기록한다.
+    static volatile string stage = "시작 준비";
+    static long heartbeat = DateTime.UtcNow.Ticks;
+    static void Beat(string what) { stage = what; Interlocked.Exchange(ref heartbeat, DateTime.UtcNow.Ticks); }
+
+    static void StartWatchdog() {
+        var t = new Thread(() => {
+            bool stuck = false; DateTime since = DateTime.MinValue;
+            while (true) {
+                Thread.Sleep(1000);
+                var last = new DateTime(Interlocked.Read(ref heartbeat), DateTimeKind.Utc);
+                double secs = (DateTime.UtcNow - last).TotalSeconds;
+                if (!stuck && secs >= 4) { stuck = true; since = last; Log("응답 없음 감지 · 멈춘 단계: " + stage + " · " + (int)secs + "초째"); }
+                else if (stuck && secs < 2) { stuck = false; Log("응답 회복 · " + (int)(DateTime.UtcNow - since).TotalSeconds + "초 동안 멈춰 있었음"); }
+            }
+        }) { IsBackground = true, Name = "watchdog" };
+        t.Start();
+    }
     static readonly List<Area> areas = new List<Area>();
     static readonly Dictionary<string, string> displayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     static readonly Dictionary<uint, string> pidNames = new Dictionary<uint, string>();
@@ -895,6 +922,7 @@ public static class VeilApp {
         pollTimer.Tick += (s, e) => Poll();
         pollTimer.Start();
         Subscribe();
+        StartWatchdog();
         MarkDirty();
         Log("시작 · 고른 프로그램 " + selected.Count + "개 · 보이게 둘 영역 " + areas.Count + "개" + (minutes > 0 ? " · " + minutes + "분 뒤 종료" : ""));
         Application.Run();
@@ -905,6 +933,7 @@ public static class VeilApp {
     // ── 트레이 메뉴 ──────────────────────────────────────────
 
     static void BuildMenu() {
+        Beat("메뉴 만들기");
         foreach (ToolStripItem old in menu.Items) if (old.Image != null) old.Image.Dispose();
         menu.Items.Clear();
         statusItem = new ToolStripMenuItem(StatusText()) { Enabled = false };
@@ -936,6 +965,16 @@ public static class VeilApp {
         foreach (var row in rows.OrderBy(r => r.Key, StringComparer.CurrentCultureIgnoreCase))
             menu.Items.Add(row.Value);
 
+        // 알림 배너가 아직 켜져 있어 내용이 그대로 보이는 앱은 메뉴 맨 위에서 바로 알린다. 누르면 끄는 방법을 보여 준다.
+        int at = 1;
+        foreach (var name in selected.OrderBy(n => Shown(n), StringComparer.CurrentCultureIgnoreCase)) {
+            if (!NotifyWanted(name) || !BannerOn(name)) continue;
+            string app = Shown(name);
+            var warn = new ToolStripMenuItem(app + " 알림 배너가 켜져 있어 내용이 보입니다 · 눌러서 끄는 방법 보기") { ForeColor = Color.Firebrick };
+            warn.Click += (s, e) => ShowGuide(app);
+            menu.Items.Insert(at++, warn);
+        }
+
         // 가리고 있는 프로그램마다 가림 모양과 보이게 둘 영역을 정한다.
         if (selected.Count > 0) {
             menu.Items.Add(new ToolStripSeparator());
@@ -963,16 +1002,24 @@ public static class VeilApp {
                 parent.DropDownItems.Add(edit);
                 parent.DropDownItems.Add(new ToolStripSeparator());
                 // Windows 알림을 쓰는 앱(Discord 등)은 배너가 가림보다 위에 그려져 덮을 수 없다.
-                // 그래서 배너는 Windows 설정에서 끄게 안내하고, 알림이 오면 창 가림이 내용 없이 알려 준다.
-                string nameForNotify = name;
-                bool hasRecord = NotifyKeysOf(name).Count > 0;
-                var notify = new ToolStripMenuItem(hasRecord
-                    ? "알림이 오면 내용 없이 알려주기"
-                    : "알림이 오면 내용 없이 알려주기 · Windows 알림을 보낸 기록이 없어 쓸 수 없음") {
-                    Checked = notifyOn.Contains(name), Enabled = hasRecord || notifyOn.Contains(name)
-                };
-                notify.Click += (s, e) => ToggleNotify(nameForNotify);
-                parent.DropDownItems.Add(notify);
+                // 그래서 알림이 오면 창 가림이 앱 이름과 건수만 알려 주고, 배너는 Windows 설정에서 한 번 끄게 안내한다.
+                parent.DropDownItems.Add(new ToolStripMenuItem("알림") { Enabled = false });
+                string nameForNotify = name, app = Shown(name);
+                if (NotifyKeysOf(name).Count > 0) {
+                    var notify = new ToolStripMenuItem("알림이 오면 「" + app + " 새 알림」 으로만 알려주기") { Checked = !notifyOff.Contains(name) };
+                    notify.Click += (s, e) => ToggleNotify(nameForNotify);
+                    parent.DropDownItems.Add(notify);
+                    if (BannerOn(name)) {
+                        var banner = new ToolStripMenuItem("알림 배너가 켜져 있어 내용이 보입니다 · 눌러서 끄는 방법 보기") { ForeColor = Color.Firebrick };
+                        banner.Click += (s, e) => ShowGuide(app);
+                        parent.DropDownItems.Add(banner);
+                    } else {
+                        parent.DropDownItems.Add(new ToolStripMenuItem("알림 배너가 꺼져 있어 내용이 보이지 않습니다") { Enabled = false });
+                    }
+                } else {
+                    parent.DropDownItems.Add(new ToolStripMenuItem("Windows 알림을 보낸 기록이 없습니다") { Enabled = false });
+                    parent.DropDownItems.Add(new ToolStripMenuItem("이 앱이 직접 띄우는 알림 창은 다른 창처럼 가려집니다") { Enabled = false });
+                }
                 menu.Items.Add(parent);
             }
         }
@@ -996,6 +1043,7 @@ public static class VeilApp {
     static string Shown(string name) { string d; return displayNames.TryGetValue(name, out d) ? d : name; }
 
     static void Toggle(ToolStripMenuItem item) {
+        Beat("가릴 프로그램 체크");
         string name = (string)item.Tag;
         if (selected.Contains(name)) selected.Remove(name); else selected.Add(name);
         item.Checked = selected.Contains(name);
@@ -1009,6 +1057,7 @@ public static class VeilApp {
     static string SkinOf(string name) { string k; return skins.TryGetValue(name, out k) ? k : "blur"; }
 
     static void SetSkin(string name, string key) {
+        Beat("가림 모양 바꾸기 · " + name);
         if (Skins.IsBlur(key)) skins.Remove(name); else skins[name] = key;
         SaveSelection();
         Log("가림 모양 · " + name + " · " + (Skins.IsImage(key) ? "그림 파일" : key));
@@ -1070,6 +1119,7 @@ public static class VeilApp {
     }
 
     static void StartEditor(IntPtr h, string program) {
+        Beat("영역 조절 시작 · " + program);
         var frame = FrameRect(h); float scale = ScaleOf(h); var kind = KindOf(h);
         var existing = new List<KeyValuePair<Rectangle, string>>();
         foreach (var a in areas) {
@@ -1167,7 +1217,7 @@ public static class VeilApp {
     // ── 저장 · 프로그램 이름, 가림 모양, 영역 위치만 저장한다. 창 제목은 남기지 않는다 ──
 
     static void LoadSelection() {
-        selected.Clear(); skins.Clear(); notifyOn.Clear();
+        selected.Clear(); skins.Clear(); notifyOff.Clear();
         if (!File.Exists(settingsPath)) return;
         foreach (var line in File.ReadAllLines(settingsPath, Encoding.UTF8)) {
             var parts = line.Split('|');
@@ -1178,7 +1228,7 @@ public static class VeilApp {
                 string flag = f.Trim();
                 if (flag.StartsWith(SkinFlag, StringComparison.Ordinal) && Skins.IsValidKey(flag.Substring(SkinFlag.Length)))
                     skins[n] = flag.Substring(SkinFlag.Length);
-                else if (flag == NotifyFlag) notifyOn.Add(n);
+                else if (flag == NoNotifyFlag) notifyOff.Add(n);
             }
         }
     }
@@ -1187,7 +1237,7 @@ public static class VeilApp {
         var lines = selected.OrderBy(n => n, StringComparer.OrdinalIgnoreCase).Select(n => {
             var line = n;
             if (!Skins.IsBlur(SkinOf(n))) line += "|" + SkinFlag + SkinOf(n);
-            if (notifyOn.Contains(n)) line += "|" + NotifyFlag;
+            if (notifyOff.Contains(n)) line += "|" + NoNotifyFlag;
             return line;
         }).ToArray();
         try { File.WriteAllLines(settingsPath, lines, Encoding.UTF8); }
@@ -1253,6 +1303,7 @@ public static class VeilApp {
 
     // 80ms 마다 하는 가벼운 확인. 모든 창을 훑지 않는다.
     static void Poll() {
+        Beat("가벼운 확인");
         var now = DateTime.Now;
         if (now > endAt) { Quit("시간이 다 되어 끝냄"); return; }
         IntPtr fg = Win.GetForegroundWindow();
@@ -1277,6 +1328,7 @@ public static class VeilApp {
     // ── 창 따라가기 ──────────────────────────────────────────
 
     static void Update() {
+        Beat("가림 다시 맞추기");
         var now = DateTime.Now;
         lastFull = now;
         // 끝난 프로세스 번호가 다른 프로그램에 재사용될 수 있어 5초마다 비운다.
@@ -1530,7 +1582,8 @@ public static class VeilApp {
     }
 
     static void CheckNotifications() {
-        foreach (var program in notifyOn) {
+        Beat("알림 시각 확인");
+        foreach (var program in selected.Where(NotifyWanted).ToList()) {
             int fresh = 0;
             foreach (var sub in NotifyKeysOf(program)) {
                 long t = LastNotifyTime(sub), seen;
@@ -1545,6 +1598,7 @@ public static class VeilApp {
                 f = new SignalForm(Shown(program), () => GoTo(name));
                 signals[program] = f;
             }
+            Beat("알림 신호 띄우기 · " + program);
             f.Add(fresh);
             PlaceSignals();
             Log("알림 신호 · " + program + " · " + fresh + "건");
@@ -1571,6 +1625,7 @@ public static class VeilApp {
     }
 
     static void GoTo(string program) {
+        Beat("알림 눌러 이동 · " + program);
         var w = EnumAppWindows().Where(x => program.Equals(NameOf(x.Pid), StringComparison.OrdinalIgnoreCase)
             && Win.GetWindow(x.H, Win.GW_OWNER) == IntPtr.Zero).ToList();
         if (w.Count == 0) { Balloon(Shown(program) + " 창이 없습니다", "작업 표시줄 오른쪽 아이콘에서 " + Shown(program) + " 을 열어 주세요."); return; }
@@ -1580,16 +1635,41 @@ public static class VeilApp {
     }
 
     static void ToggleNotify(string program) {
-        if (notifyOn.Contains(program)) {
-            notifyOn.Remove(program);
-            Log("알림 신호 끔 · " + program);
-        } else {
-            notifyOn.Add(program);
+        Beat("알림 신호 켜기·끄기 · " + program);
+        if (notifyOff.Contains(program)) {
+            notifyOff.Remove(program);
             foreach (var sub in NotifyKeysOf(program)) lastNotifySeen[sub] = LastNotifyTime(sub);
             Log("알림 신호 켬 · " + program);
-            new NotifyGuideForm(Shown(program)).Show();
+        } else {
+            notifyOff.Add(program);
+            Log("알림 신호 끔 · " + program);
         }
         SaveSelection();
+    }
+
+    // 가리고 있고, 알림 신호를 끄지 않았고, Windows 알림을 보낸 기록이 있는 앱
+    static bool NotifyWanted(string program) {
+        return !notifyOff.Contains(program) && NotifyKeysOf(program).Count > 0;
+    }
+
+    // 그 앱의 Windows 알림 배너가 켜져 있는지. 값이 없으면 켜짐(기본값)이다. 읽기만 하고 바꾸지 않는다.
+    static bool BannerOn(string program) {
+        foreach (var sub in NotifyKeysOf(program)) {
+            using (var k = Registry.CurrentUser.OpenSubKey(NotifySettingsKey + "\\" + sub)) {
+                if (k == null) continue;
+                object v = k.GetValue("ShowBanner");
+                if (!(v is int) || (int)v != 0) return true;
+            }
+        }
+        return false;
+    }
+
+    static NotifyGuideForm guideForm;
+    static void ShowGuide(string app) {
+        Beat("배너 끄는 방법 안내");
+        if (guideForm != null && !guideForm.IsDisposed) { guideForm.Activate(); return; }
+        guideForm = new NotifyGuideForm(app);
+        guideForm.Show();
     }
 
     static void Quit(string why) {
@@ -1607,8 +1687,12 @@ public static class VeilApp {
     }
 
     // 창 제목과 화면 내용은 남기지 않는다. 대화방 이름이나 대화 같은 개인정보가 들어 있다.
+    // 본체와 멈춤 감시 작업이 같이 쓰므로 한 번에 하나씩 쓴다.
+    static readonly object logLock = new object();
     static void Log(string msg) {
-        try { File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss.fff") + "  " + msg + Environment.NewLine, Encoding.UTF8); }
-        catch (IOException) { }
+        lock (logLock) {
+            try { File.AppendAllText(logPath, DateTime.Now.ToString("HH:mm:ss.fff") + "  " + msg + Environment.NewLine, Encoding.UTF8); }
+            catch (IOException) { }
+        }
     }
 }
