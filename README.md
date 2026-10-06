@@ -43,7 +43,9 @@ Windows draws notification banners above every other window, so Window Veil cann
 What Window Veil does instead:
 
 - When a covered app sends a Windows notification, it shows **"*app*: new notification"** with a count at the bottom right. Click it to open the app. Nothing is shown while you are using that app.
-- If a covered app's banners are still on, the top of the tray menu says so in red. Click that line for a short guide to turn the banners off in Windows Settings. The guide shows the current state and turns green once they are off.
+- To hide what a notification says, that app's banners must be off in the Windows Settings app. When you choose an app to cover and its banners are on, Window Veil opens a short guide by itself. The guide shows **Hide notification content: not set up** in red and turns green (**done**) the moment you turn the banners off.
+- The same state appears in the menu, at the top and under **Customize covered windows** > the app. Click it to open the guide again.
+- **If an app's banners are off, turning off its "new notification" signal or no longer covering it means its notifications stop appearing on screen at all**, because Window Veil cannot turn the Windows banners back on. When that happens, Window Veil opens a notice that shows how to turn the signal back on or turn the banners back on in Windows Settings. Quitting Window Veil has the same effect, so **Quit Window Veil** shows which apps will go silent and asks once more.
 
 You only need to turn the banners off once per app on each PC. Windows keeps this setting even if you reinstall Window Veil, and your notifications stay in the Windows notification center.
 
