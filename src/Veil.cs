@@ -737,7 +737,7 @@ class NotifyGuideForm : Form {
 
     public NotifyGuideForm(string app, Func<bool> bannerOn) {
         Text = L.T(app + " 알림 내용 가리기", "Hide " + app + " notification content");
-        Icon = SystemIcons.Shield;
+        Icon = VeilApp.AppIcon;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
@@ -830,7 +830,7 @@ class NotifySilentForm : Form {
 
     public NotifySilentForm(string app, Func<int> state, string backLabel, string backHow, Action back) {
         Text = L.T(app + " 알림이 화면에 뜨지 않습니다", app + " notifications will not appear on screen");
-        Icon = SystemIcons.Shield;
+        Icon = VeilApp.AppIcon;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
@@ -903,7 +903,7 @@ class QuitWarnForm : Form {
 
     public QuitWarnForm(Func<List<string>> silentApps, Action quit) {
         Text = L.T("창 가림 끝내기", "Quit Window Veil");
-        Icon = SystemIcons.Shield;
+        Icon = VeilApp.AppIcon;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
@@ -964,12 +964,12 @@ class QuitWarnForm : Form {
     }
 }
 
-// 방패 아이콘 메뉴의 「사용법 보기」. 할 일별로 묶어 보여준다.
+// 트레이 아이콘 메뉴의 「사용법 보기」. 할 일별로 묶어 보여준다.
 class HelpForm : Form {
     static readonly string[][] Sections = {
         new[] { L.T("프로그램 가리기", "Cover apps"),
-                L.T("작업 표시줄의 방패 아이콘을 누르고, 목록에서 가릴 프로그램을 체크합니다. 체크한 프로그램은 다른 창을 쓰는 동안 덮입니다. 메뉴가 닫히지 않으니 여러 개를 이어서 체크할 수 있습니다.",
-                    "Click the shield icon in the taskbar and check the apps to cover. Checked apps are covered while you use other windows. The menu stays open, so you can check several in a row.") },
+                L.T("작업 표시줄의 파란 창 모양 아이콘을 누르고, 목록에서 가릴 프로그램을 체크합니다. 체크한 프로그램은 다른 창을 쓰는 동안 덮입니다. 메뉴가 닫히지 않으니 여러 개를 이어서 체크할 수 있습니다.",
+                    "Click the blue window icon in the taskbar and check the apps to cover. Checked apps are covered while you use other windows. The menu stays open, so you can check several in a row.") },
         new[] { L.T("잠깐 보기", "Peek"),
                 L.T("덮인 창 위에 마우스를 올리고 Ctrl 을 누르고 있으면 보입니다. 손을 떼면 다시 덮입니다.",
                     "Hover over a covered window and hold Ctrl to see it. Release Ctrl to cover it again.") },
@@ -990,17 +990,20 @@ class HelpForm : Form {
         new[] { L.T("알림 내용 가리기", "Hide notification content"),
                 L.T("Windows 알림 배너는 모든 창보다 위에 그려져서 창 가림이 덮을 수 없고, 대신 끌 수도 없습니다. 그래서 이 설정만은 Windows 설정 앱에서 앱마다 한 번 해야 합니다. 가릴 프로그램을 고를 때 그 앱 배너가 켜져 있으면 방법 안내가 저절로 뜹니다. 나중에는 메뉴 맨 위나 「가린 창 꾸미기」 → 앱 → 「알림 내용 가리기」 에서 상태를 보고 안내를 다시 열 수 있습니다. 카카오톡처럼 앱이 직접 띄우는 알림 창은 이 설정 없이도 다른 창처럼 가려집니다.",
                     "Windows notification banners are drawn above every window, so Window Veil cannot cover them or turn them off for you. This one step has to be done once per app in the Windows Settings app. When you choose an app to cover and its banners are on, the guide opens by itself. Later you can see the state and reopen the guide at the top of the menu or under \"Customize covered windows\" > app > \"Hide notification content\". Pop-up windows that an app draws itself, such as KakaoTalk's, are covered like its other windows without this step.") },
+        new[] { L.T("Windows 시작할 때 자동으로 켜기", "Start with Windows"),
+                L.T("메뉴의 「Windows 시작할 때 창 가림 자동으로 켜기」 를 체크하면 Windows 에 로그인할 때마다 창 가림이 켜집니다. 체크를 풀면 더는 켜지지 않습니다. Windows 설정 → 앱 → 시작 프로그램 에서 꺼도 이 체크가 풀립니다. 창 가림 파일을 다른 폴더로 옮겼다면 한 번 더 체크해 주세요.",
+                    "Check \"Start Window Veil when Windows starts\" in the menu, and Window Veil starts each time you sign in to Windows. Uncheck it to stop. Turning it off in Windows Settings > Apps > Startup also unchecks it. If you moved Window Veil to another folder, check it again.") },
         new[] { L.T("가림 그만두기", "Stop covering"),
                 L.T("목록에서 체크를 풀면 그 프로그램만 그만 가립니다. 전부 잠깐 멈추려면 「모든 가림 잠시 끄기」, 프로그램을 닫으려면 「창 가림 끝내기」 를 누릅니다.",
                     "Uncheck an app in the list to stop covering just that app. To pause everything, choose \"Pause all covers\". To exit, choose \"Quit Window Veil\".") },
         new[] { L.T("저장하는 것", "What is saved"),
-                L.T("고른 프로그램 이름, 가림 모양(그림을 골랐다면 그 파일 위치), 알림 신호를 껐는지, 보이게 둘 영역의 위치만 %APPDATA%\\WindowVeil 에 저장합니다. 창 제목이나 화면 내용은 저장하지 않습니다.",
-                    "Only the selected app names, cover styles (and the image path if you chose one), which apps have the notification signal turned off, and visible-area positions are saved in %APPDATA%\\WindowVeil. Window titles and screen contents are never saved.") },
+                L.T("고른 프로그램 이름, 가림 모양(그림을 골랐다면 그 파일 위치), 알림 신호를 껐는지, 보이게 둘 영역의 위치만 %APPDATA%\\WindowVeil 에 저장합니다. 창 제목이나 화면 내용은 저장하지 않습니다. 자동으로 켜기를 체크하면 Windows 시작 프로그램 목록에 창 가림 한 줄을 적고, 체크를 풀면 지웁니다.",
+                    "Only the selected app names, cover styles (and the image path if you chose one), which apps have the notification signal turned off, and visible-area positions are saved in %APPDATA%\\WindowVeil. Window titles and screen contents are never saved. Checking \"Start with Windows\" adds one Window Veil entry to the Windows startup list, and unchecking it removes the entry.") },
     };
 
     public HelpForm() {
         Text = L.T("창 가림 사용법", "Window Veil help");
-        Icon = SystemIcons.Shield;
+        Icon = VeilApp.AppIcon;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false; MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
@@ -1100,6 +1103,22 @@ public static class VeilApp {
     static ToolStripLabel Info(string text, Color color) {
         return new ToolStripLabel(text) { ForeColor = color, Margin = new Padding(6, 2, 0, 2) };
     }
+    // 실행 파일에 넣어 둔 아이콘. PowerShell 로 시험 실행할 때는 넣을 수 없어서 run.ps1 이 IconPath 로 파일 위치를 알려 준다.
+    // 둘 다 없으면 Windows 기본 프로그램 아이콘을 쓴다.
+    public static string IconPath;
+    static Icon appIcon;
+    public static Icon AppIcon {
+        get {
+            if (appIcon != null) return appIcon;
+            try {
+                using (var s = typeof(VeilApp).Assembly.GetManifestResourceStream("WindowVeil.ico"))
+                    if (s != null) appIcon = new Icon(s);
+                if (appIcon == null && IconPath != null && File.Exists(IconPath)) appIcon = new Icon(IconPath);
+            } catch (ArgumentException) { } catch (IOException) { }
+            return appIcon ?? (appIcon = SystemIcons.Application);
+        }
+    }
+
     static HelpForm helpForm;
     static AreaEditor editor;
     static IntPtr editingTarget = IntPtr.Zero;
@@ -1154,7 +1173,8 @@ public static class VeilApp {
         };
 
         // 마우스를 올렸을 때 뜨는 글씨는 이름만 둔다. 상태와 사용법은 메뉴 안에서 보여준다.
-        tray = new NotifyIcon { Icon = SystemIcons.Shield, Visible = true, ContextMenuStrip = menu, Text = L.T("창 가림", "Window Veil") };
+        // 트레이에는 작은 크기를 골라 준다. 큰 그림을 줄이면 흐려진다.
+        tray = new NotifyIcon { Icon = new Icon(AppIcon, SystemInformation.SmallIconSize), Visible = true, ContextMenuStrip = menu, Text = L.T("창 가림", "Window Veil") };
         tray.MouseUp += (s, e) => {
             if (e.Button != MouseButtons.Left) return;
             var show = typeof(NotifyIcon).GetMethod("ShowContextMenu", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -1162,12 +1182,12 @@ public static class VeilApp {
         };
         if (firstRun || selected.Count == 0)
             Balloon(L.T("창 가림이 켜졌습니다", "Window Veil is running"),
-                    L.T("작업 표시줄의 방패 아이콘을 눌러 가릴 프로그램을 체크하세요. 사용법도 그 메뉴에 있습니다.",
-                        "Click the shield icon in the taskbar and check the apps to cover. Help is in the same menu."));
+                    L.T("작업 표시줄의 파란 창 모양 아이콘을 눌러 가릴 프로그램을 체크하세요. 사용법도 그 메뉴에 있습니다.",
+                        "Click the blue window icon in the taskbar and check the apps to cover. Help is in the same menu."));
         else
             Balloon(L.T("창 가림이 켜졌습니다", "Window Veil is running"),
-                    L.T(selected.Count + "개 프로그램을 가립니다. 바꾸려면 방패 아이콘을 누르세요.",
-                        "Covering " + selected.Count + (selected.Count == 1 ? " app" : " apps") + ". Click the shield icon to change this."));
+                    L.T(selected.Count + "개 프로그램을 가립니다. 바꾸려면 파란 창 모양 아이콘을 누르세요.",
+                        "Covering " + selected.Count + (selected.Count == 1 ? " app" : " apps") + ". Click the blue window icon to change this."));
 
         updateTimer = new System.Windows.Forms.Timer { Interval = 15 };
         updateTimer.Tick += (s, e) => { updateTimer.Stop(); Update(); };
@@ -1301,6 +1321,12 @@ public static class VeilApp {
         var help = new ToolStripMenuItem(L.T("사용법 보기", "Help"));
         help.Click += (s, e) => ShowHelp();
         menu.Items.Add(help);
+        // PowerShell 로 시험 실행 중이면 등록할 실행 파일이 없어서 이 항목을 두지 않는다.
+        if (ExePath() != null) {
+            var auto = new ToolStripMenuItem(L.T("Windows 시작할 때 창 가림 자동으로 켜기", "Start Window Veil when Windows starts")) { Checked = AutoStartOn(), Tag = "autostart" };
+            auto.Click += (s, e) => { SetAutoStart(!AutoStartOn()); auto.Checked = AutoStartOn(); };
+            menu.Items.Add(auto);
+        }
         var pause = new ToolStripMenuItem(enabled ? L.T("모든 가림 잠시 끄기", "Pause all covers") : L.T("모든 가림 다시 켜기", "Resume all covers"));
         pause.Click += (s, e) => {
             enabled = !enabled;
@@ -1994,6 +2020,58 @@ public static class VeilApp {
         if (guideForm != null && !guideForm.IsDisposed) { guideForm.Activate(); return; }
         guideForm = new NotifyGuideForm(Shown(program), () => BannerOn(program));
         guideForm.Show();
+    }
+
+    // ── 자동으로 켜기 ──────────────────────────────────────────
+    // Windows 에 로그인할 때 켜지는 프로그램 목록(이 사용자 계정의 Run)에 한 줄을 적고 지운다. 관리자 권한이 필요 없다.
+    const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    // 작업 관리자 「시작 앱」 이나 설정 앱에서 끄면 Windows 가 여기에 꺼짐 표시를 남긴다. Run 에 적혀 있어도 켜지지 않는다.
+    const string StartupApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+    const string RunName = "WindowVeil";
+
+    // 지금 실행 중인 WindowVeil.exe 위치. PowerShell 로 시험 실행 중이면 null.
+    static string ExePath() {
+        string p = Application.ExecutablePath;
+        return Path.GetFileName(p).Equals("WindowVeil.exe", StringComparison.OrdinalIgnoreCase) ? p : null;
+    }
+
+    // 지금 이 실행 파일이 로그인할 때 켜지게 되어 있는지. 다른 위치의 exe 가 적혀 있으면(옮겼거나 압축판) 꺼진 것으로 본다.
+    static bool AutoStartOn() {
+        string exe = ExePath();
+        if (exe == null) return false;
+        using (var k = Registry.CurrentUser.OpenSubKey(RunKey)) {
+            string v = k == null ? null : k.GetValue(RunName) as string;
+            if (v == null || !v.Trim().Trim('"').Equals(exe, StringComparison.OrdinalIgnoreCase)) return false;
+        }
+        // 첫 바이트 02 는 켜짐, 03 은 꺼짐이다(작업 관리자가 쓰는 값). 그 밖의 값은 홀수를 꺼짐으로 본다.
+        using (var k = Registry.CurrentUser.OpenSubKey(StartupApprovedKey)) {
+            byte[] b = k == null ? null : k.GetValue(RunName) as byte[];
+            return b == null || b.Length == 0 || (b[0] & 1) == 0;
+        }
+    }
+
+    static void SetAutoStart(bool on) {
+        Beat(L.T("자동으로 켜기 바꾸기", "changing start with Windows"));
+        string exe = ExePath();
+        if (exe == null) return;
+        try {
+            if (on) {
+                using (var k = Registry.CurrentUser.CreateSubKey(RunKey)) k.SetValue(RunName, "\"" + exe + "\"");
+                // 예전에 작업 관리자에서 꺼 둔 표시가 남아 있으면 Run 에 적어도 켜지지 않으니, 이 프로그램 것만 지운다.
+                using (var k = Registry.CurrentUser.OpenSubKey(StartupApprovedKey, true))
+                    if (k != null) k.DeleteValue(RunName, false);
+            } else {
+                using (var k = Registry.CurrentUser.OpenSubKey(RunKey, true))
+                    if (k != null) k.DeleteValue(RunName, false);
+            }
+            Log(on ? L.T("자동으로 켜기 켬", "Start with Windows on") : L.T("자동으로 켜기 끔", "Start with Windows off"));
+        } catch (Exception ex) {
+            if (!(ex is UnauthorizedAccessException || ex is System.Security.SecurityException || ex is IOException)) throw;
+            Log(L.T("자동으로 켜기 바꾸기 실패 · ", "Could not change start with Windows · ") + ex.GetType().Name);
+            Balloon(L.T("자동으로 켜기를 바꾸지 못했습니다", "Could not change this setting"),
+                    L.T("Windows 설정 → 앱 → 시작 프로그램 에서 창 가림(WindowVeil)을 직접 켜거나 꺼 주세요.",
+                        "Turn Window Veil (WindowVeil) on or off in Windows Settings > Apps > Startup."));
+        }
     }
 
     // 끝내면 알림이 화면에 하나도 안 뜨게 되는 앱. 배너를 꺼 두고 「새 알림」 으로만 받던 앱이다.

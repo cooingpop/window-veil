@@ -13,6 +13,7 @@ It is a visual privacy aid for people nearby. It does not lock apps, encrypt any
 - **Cover styles**: blur, a blank terminal, a terminal with scrolling logs, blank Notepad, a blank spreadsheet, or your own image. The built-in styles contain sample content only, so they make it hard to tell that anything is covered.
 - **Visible areas** keep part of a window uncovered, such as a message input box.
 - **Notification signal** shows only "*app*: new notification" when a covered app sends a Windows notification, so you know something arrived without showing its content.
+- **Start with Windows**: check it in the menu and Window Veil starts each time you sign in. Uncheck it to stop.
 - Works across monitors with different display scaling.
 - Shows its menus in Korean or English, following your Windows display language.
 
@@ -25,16 +26,18 @@ Download the latest version from [Releases](https://github.com/cooingpop/window-
 | `WindowVeil-Setup-…-win-x64.exe` | You want a normal installation | Run the installer, then open **Window Veil** from the Start menu. |
 | `WindowVeil-…-win-x64.zip` | You do not want to install anything | Extract the ZIP and run `WindowVeil.exe`. |
 
-Window Veil lives in the system tray as a shield icon. If you do not see it, click **^** at the right end of the taskbar.
+Window Veil lives in the system tray as a blue window icon. If you do not see it, click **^** at the right end of the taskbar.
+
+To have it start every time you turn on your PC, check **Start Window Veil when Windows starts** in its menu.
 
 ## Getting started
 
-1. Click the shield icon.
+1. Click the blue window icon.
 2. Under **Choose apps to cover**, check the apps you want to cover. The menu stays open, so you can check several in a row.
 3. Under **Customize covered windows**, pick an app to change its cover style, adjust visible areas, or set its notifications.
 4. To use a covered app, click its window or switch to it. To glance at it without switching, hover over it and hold **Ctrl**.
 
-The menu also has **Help**, **Pause all covers**, and **Quit Window Veil**.
+The menu also has **Help**, **Start Window Veil when Windows starts**, **Pause all covers**, and **Quit Window Veil**.
 
 ## Notifications
 
@@ -69,7 +72,9 @@ Window Veil runs entirely on your PC and sends nothing anywhere. It never saves 
 | `areas.txt` | Positions of visible areas |
 | `veil.log` | A diagnostic log. It can contain app names, so check it before attaching it to an issue. |
 
-For the notification signal, Window Veil reads only two values that Windows keeps for each app under `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings`: the time of its latest notification and whether its banners are off. It never reads notification text and never changes Windows settings.
+For the notification signal, Window Veil reads only two values that Windows keeps for each app under `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings`: the time of its latest notification and whether its banners are off. It never reads notification text and never changes notification settings.
+
+The only Windows setting Window Veil changes is starting with Windows. When you check it, Window Veil adds one `WindowVeil` entry to your account's startup list (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`). Unchecking it removes the entry, and so does uninstalling with the installer.
 
 Uninstalling does not delete these files. To remove them, quit Window Veil and delete the `%APPDATA%\WindowVeil` folder.
 
@@ -98,6 +103,8 @@ This creates `dist\WindowVeil.exe`. To build the installer, install [Inno Setup 
 ```
 
 For quick experiments without building, `run-hidden.vbs` starts `run.ps1`, which compiles `src\Veil.cs` in PowerShell each time it starts.
+
+The app icon `assets\WindowVeil.ico` is drawn by `tools\make-icon.ps1`. Change the drawing there and run it again instead of editing the icon by hand.
 
 ## Contributing
 
