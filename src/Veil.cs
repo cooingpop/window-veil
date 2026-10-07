@@ -1066,11 +1066,39 @@ public static class VeilApp {
     static long heartbeat = DateTime.UtcNow.Ticks;
     static void Beat(string what) { stage = what; Interlocked.Exchange(ref heartbeat, DateTime.UtcNow.Ticks); }
 
+    // 꺼진 이유를 나중에 알 수 있게 남긴다. 2026-10-07 에 PC 가 절전에 들어간 뒤 아무 기록 없이 꺼져 있었다.
+    // 로그 끝에 「프로세스 끝남」 도 없으면 오류가 아니라 밖에서 강제로 끝낸 것이다.
+    static void WatchExit() {
+        // 화면 쪽 오류 하나로 프로그램 전체가 끝나지 않게 기록만 하고 계속 돈다. 창을 만들기 전에만 정할 수 있다.
+        try { Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException); } catch (InvalidOperationException) { }
+        Application.ThreadException += (s, e) => Log(L.T("처리하지 못한 오류 · 계속 실행 · ", "Unhandled error · still running · ") + e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (s, e) => Log(L.T("처리하지 못한 오류 · 프로그램이 끝남 · ", "Unhandled error · exiting · ") + e.ExceptionObject);
+        AppDomain.CurrentDomain.ProcessExit += (s, e) => Log(L.T("프로세스 끝남", "Process exiting"));
+        SystemEvents.SessionEnding += (s, e) => Log(L.T("Windows 로그오프·종료 시작 · ", "Windows sign-out or shutdown · ") + e.Reason);
+        SystemEvents.PowerModeChanged += (s, e) => {
+            if (e.Mode == PowerModes.Suspend) Log(L.T("PC 절전 들어감", "PC going to sleep"));
+            else if (e.Mode == PowerModes.Resume) Log(L.T("PC 절전에서 깨어남", "PC woke from sleep"));
+        };
+    }
+
     static void StartWatchdog() {
         var t = new Thread(() => {
             bool stuck = false; DateTime since = DateTime.MinValue;
+            DateTime prevTick = DateTime.UtcNow;
             while (true) {
                 Thread.Sleep(1000);
+                // 1초 쉬었는데 30초 넘게 지났으면 이 프로그램 전체가 멈춰 있던 것이다(절전 중에는 Windows 가 앱을 세운다).
+                // 화면이 멈춘 것(응답 없음)과 구분해서 남긴다.
+                double gap = (DateTime.UtcNow - prevTick).TotalSeconds;
+                prevTick = DateTime.UtcNow;
+                if (gap >= 30) {
+                    string howLong = gap < 120 ? L.T((int)gap + "초", (int)gap + " s") : L.T((int)(gap / 60) + "분", (int)(gap / 60) + " min");
+                    Log(L.T("Windows 가 창 가림을 " + howLong + " 동안 멈춰 두었다가 다시 움직임 (절전 등)",
+                            "Windows paused Window Veil for " + howLong + " and resumed it (sleep, for example)"));
+                    stuck = false;
+                    Interlocked.Exchange(ref heartbeat, DateTime.UtcNow.Ticks);
+                    continue;
+                }
                 var last = new DateTime(Interlocked.Read(ref heartbeat), DateTimeKind.Utc);
                 double secs = (DateTime.UtcNow - last).TotalSeconds;
                 if (!stuck && secs >= 4) {
@@ -1150,6 +1178,7 @@ public static class VeilApp {
         Log(perMonitor ? L.T("화면 배율 처리 · 모니터별 배율", "Display scaling · per monitor")
                        : L.T("화면 배율 처리 · 시스템 배율 기준 (모니터마다 배율이 다르면 어긋날 수 있음)", "Display scaling · system only (covers may be off on monitors with different scaling)"));
         Log(L.T("화면 언어 · 한국어", "Display language · English"));
+        WatchExit();
         selfPid = (uint)Process.GetCurrentProcess().Id;
         if (minutes > 0) endAt = DateTime.Now.AddMinutes(minutes);
         string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WindowVeil");
