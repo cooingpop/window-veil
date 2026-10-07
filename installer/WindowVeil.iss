@@ -16,6 +16,7 @@ OutputDir=..\dist
 OutputBaseFilename=WindowVeil-Setup-{#AppVersion}-win-x64
 Compression=lzma
 SolidCompression=yes
+SetupIconFile=..\assets\WindowVeil.ico
 UninstallDisplayIcon={app}\WindowVeil.exe
 CloseApplications=yes
 RestartApplications=no
@@ -28,3 +29,15 @@ Name: "{group}\Window Veil"; Filename: "{app}\WindowVeil.exe"
 
 [Run]
 Filename: "{app}\WindowVeil.exe"; Description: "Start Window Veil"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// The app adds itself to the Windows startup list when "Start Window Veil when Windows starts" is checked.
+// Remove that entry on uninstall so Windows does not try to start a program that is gone.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'WindowVeil');
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run', 'WindowVeil');
+  end;
+end;

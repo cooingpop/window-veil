@@ -20,6 +20,9 @@ using System.Reflection;
 [assembly: AssemblyFileVersion("$version.0")]
 [assembly: AssemblyInformationalVersion("$version")]
 "@ | Set-Content -LiteralPath $versionSource -Encoding ASCII
-& $compiler /nologo /target:winexe /platform:x64 /optimize+ "/out:$exe" /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll (Join-Path $PSScriptRoot 'src\Program.cs') (Join-Path $PSScriptRoot 'src\Veil.cs') $versionSource
+$icon = Join-Path $PSScriptRoot 'assets\WindowVeil.ico'
+if (-not (Test-Path -LiteralPath $icon)) { throw "Icon not found: $icon (run tools\make-icon.ps1)" }
+# /win32icon is the icon Explorer shows for the exe. /resource lets the app load the same icon for the tray and its windows.
+& $compiler /nologo /target:winexe /platform:x64 /optimize+ "/out:$exe" "/win32icon:$icon" "/resource:$icon,WindowVeil.ico" /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll (Join-Path $PSScriptRoot 'src\Program.cs') (Join-Path $PSScriptRoot 'src\Veil.cs') $versionSource
 if ($LASTEXITCODE -ne 0) { throw "C# compilation failed with exit code $LASTEXITCODE" }
 Write-Output $exe
